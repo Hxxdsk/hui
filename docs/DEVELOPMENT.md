@@ -1,0 +1,25 @@
+# 开发与构建
+
+Node.js 24.5+。本地服务 server.mjs、浏览器 ES modules public/；翻译 translation.mjs；原子设置存储 preferences.mjs；Anima 接入 anima-service.mjs / anima-bridge.py；正式发布检查 updates.mjs。
+
+```powershell
+npm ci
+npm run assets
+npm run check
+npm test
+```
+
+测试覆盖流式响应、上下文、附件、翻译签名、词库、前缀、配置备份、长历史与升级回滚。Windows 便携 Python 就绪时运行真实 T5 校验；其他环境明确跳过此项。
+
+Windows 便携构建使用系统 .NET Framework C# 编译器与当前 Node x64：
+
+```powershell
+npm run prepare:portable
+npm run build:portable
+```
+
+准备命令将 Python 和校验依赖安装在项目内部，不要求全局 Python。完整包带本地运行环境；可选 1.9GB PixAI 权重、API 设置、聊天、测试与缓存不纳入发布。构建器使用来源白名单，复用发布目录不会把运行后产生的个人设置打包。
+
+HuiDesktop.cs 为不显示窗口的桌面进程，管理浏览器页面租约、服务退出、更新接管与重启；HuiLauncher.cs 保留图标与旧预览代码。desktop-lifecycle.mjs 管理多页面及刷新宽限，update-manager.mjs 在确认后下载并校验，update-worker.mjs 在旧进程退出后完成替换与重启。update-engine.mjs 负责差异、备份和事务回滚；HuiUpdater.cs 仅用于无网页更新功能旧版的一次性迁移。维护与资产发布见 [RELEASING](RELEASING.md)。
+
+不要提交 user-data、.env、配置备份、聊天、模型、运行环境或真实 API Key。上游修改需更新来源和哈希，并保留许可证。

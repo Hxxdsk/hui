@@ -1,0 +1,55 @@
+# ---------------- 虚拟环境 ----------------
+.venv/
+venv/
+env/
+
+# ---------------- Python 打包与构建缓存 ----------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ---------------- 模型权重（体积大，由 tools/setup.py 拉取，不入库）----------------
+# 只忽略下载落点与权重文件本身；models/README.md 和 models/t5_tokenizer/ 要入库
+models/wd-eva02-tagger-2026-canary-onnx-v2/
+models/**/*.onnx
+models/**/*.safetensors
+models/**/*.bin
+models/**/*.pt
+models/**/*.ckpt
+
+# ---------------- 运行产物与临时工作区 ----------------
+# 规范临时文件收敛目录
+.work/
+.anima_cache/
+tmp/
+temp/
+*.tmp
+
+# 历史向后兼容临时文件
+run.json
+run*.json
+*.tagger.json
+*.log
+
+# ---------------- 编辑器 / 系统 ----------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.venv-pixai-gpu/
+models/pixai-tagger-v1.0-original/
+models/pixai-tagger-v1.0-onnx/
+
+# Local presets and verification files
+/presets/
+/tests/

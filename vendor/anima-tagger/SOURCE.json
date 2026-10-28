@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/Vincent54122/anima-tagger",
+  "commit": "8f8ca10fc63c2f8fa1b345bc8c75b102acfe6d38",
+  "files": {
+    "LICENSE": "a50e4239e37b44fc6b0d4b274be1d4c37f57071626a05921a0748bf3440e8156",
+    "pyproject.toml": "1e82401cfa8dce54ed4657ce7a0955d604ca120ecd9823502564bda5b63cc23c",
+    "README.en.md": "8d0c77ee19716178744e983ce87b460fed657f19e3372bdf8582a7d87f9e235f",
+    "README.md": "b0a52cdb689cbbb94310a23a839dcb74a384720a28a655d9cdc9f302d25eb724",
+    "SKILL.md": "caa271f41c5177cc4f413f40cd3af0bf7147aba882e7d28ac8fdd32b0161fd1a",
+    "THIRD_PARTY_NOTICES.md": "2fca296060e1de56fb30d08a94a045f7f861ce6c0d6f4fd5249ca71adbb18928",
+    "models/README.md": "59092fc603b85af563ec7d0de48ac5ade80efcc74e327a702114d154260ee8ce",
+    "references/创作分支.md": "50cedec9fa81767a56426401217171c59aa6397397ad6cd15af250d4fcb2ba38",
+    "references/反推分支.md": "b51fbd54d30d94a8972d96d0bea3d3bb083dd39f6a2702d849333089c475f326",
+    "references/多人提示词.md": "82720c0613952aafae3928a6f7bf33bb8c8b5818df5df26aeb00ee538d0ed21a",
+    "references/扩写分支.md": "49fd8946b43788fb09658c5ca9b4d890aa26fc86fb730100072af257a7fccb9f",
+    "references/格式规范.md": "3ffff5359a19b9d26088ee0285155cd84b4695bca603e9a97539c5846147b273",
+    "tools/anima_validate.py": "ac2c44c0d5a9cfd87760393c0f04fe5e3e761da2f33c92b0f1104f86763b356a",
+    "tools/pixai_config.py": "a380bdc90f9619c1eca992b8c2d2ea6e336259d2f27396af3cb2db3027d5069d",
+    "tools/pixai_tagger.py": "e218fc93718bd630060309b667da1492e729fd80e67b4046962e15cba9c9379b",
+    "tools/requirements-cpu.txt": "9c5fbe4bc852570769b4e440f6a8d61f5f56c1d7a8c010f91d2cd7a9b1a00712",
+    "tools/requirements.txt": "a7fae46c7d7317b4e9a587b2f130ddf807276e099672303634a096dbf43bda7b",
+    "tools/setup.py": "791bb3037442dac07cb60d9abc47469227faaa5e87295d16cf59cb2f7a2ac422",
+    "tools/wd_tagger.py": "e74139e7e532be2fe9df4b0f1950a7a0dad8040e0c671158bc8af19dc5542751",
+    "models/t5_tokenizer/tokenizer.json": "2432e8aa83414a69884a5cbd54a68f528c042d1f30780affbefcbb85091f022e"
+  }
+}

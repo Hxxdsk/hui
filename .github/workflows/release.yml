@@ -1,0 +1,51 @@
+name: Build Windows release
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run assets
+      - uses: actions/cache@v4
+        with:
+          path: vendor/anima-tagger/.hui-python
+          key: hui-portable-python-3119-validator-v1
+      - run: npm run prepare:portable
+      - run: npm run check
+      - run: npm test
+      - run: npm run build:portable
+      - name: Compare with previous release resources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release download --repo $env:GITHUB_REPOSITORY --pattern release-manifest.json --dir previous-release
+          if ($LASTEXITCODE -eq 0) {
+            node scripts/build-releases.mjs --baseline previous-release/release-manifest.json
+            if ($LASTEXITCODE -ne 0) { throw 'Delta build failed' }
+          } else {
+            $v = (Get-Content package.json | ConvertFrom-Json).version
+            if ($v -ne '2.5.0') { throw 'Subsequent releases require the previous manifest.' }
+            Write-Host 'First public release; core-only update.'
+          }
+      - name: Publish source-consistent artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json | ConvertFrom-Json).version
+          git diff --exit-code -- assets/data-manifest.json
+          if ($LASTEXITCODE -ne 0) { throw 'Commit the updated assets/data-manifest.json first.' }
+          gh release create "v$v" --draft --target $env:GITHUB_SHA --title "绘 v$v" --notes-file CHANGELOG.md
+          if ($LASTEXITCODE -ne 0) { throw 'Release already exists or cannot be created' }
+          gh release upload "v$v" "release/hui-portable-v$v-windows-x64.zip" "release/hui-upgrade-v$v-windows-x64.zip" "release/hui-data-v$v.zip" release/release-manifest.json release/SHA256SUMS.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Upload failed; release remains draft' }
+          gh release edit "v$v" --draft=false

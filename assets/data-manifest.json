@@ -1,0 +1,30 @@
+{
+  "schema": "hui-data",
+  "version": "2.5.0",
+  "bundle": {
+    "url": "https://github.com/Hxxdsk/hui/releases/download/v2.5.0/hui-data-v2.5.0.zip",
+    "sha256": "9d90c2085e7f55361a0fa217de214983f829d874bc13349ad46ce789043d5946"
+  },
+  "files": [
+    {
+      "path": "data/Anima-preview.csv",
+      "size": 2981399,
+      "sha256": "67e4688ddb15e3f119b2dc6ca2ac019d8cee34cd9b0bd0f618521afaa0dec7ef"
+    },
+    {
+      "path": "data/anima-index.json",
+      "size": 7428662,
+      "sha256": "03e70bd9545853255e364f697f499fd00884757cb501a46d63155b474a406fe3"
+    },
+    {
+      "path": "data/tags.sqlite",
+      "size": 36810752,
+      "sha256": "3f16f38226efc882c26e28e3ce513d79631c013b96c95f08b3875c7d520fc76b"
+    },
+    {
+      "path": "vendor/anima-tagger/models/t5_tokenizer/tokenizer.json",
+      "size": 2424069,
+      "sha256": "2432e8aa83414a69884a5cbd54a68f528c042d1f30780affbefcbb85091f022e"
+    }
+  ]
+}

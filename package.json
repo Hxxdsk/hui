@@ -1,0 +1,32 @@
+{
+  "name": "hui-workbench",
+  "version": "2.5.0",
+  "private": true,
+  "type": "module",
+  "description": "本地第三方 API 对话与双语 Tag 工作台",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check server.mjs && node --check translation.mjs && node --check public/app.js && node --check public/core.js && node --check public/anima-core.js && node --check public/anima-ui.js && node --check public/anima-worker.js && node --check public/prompt-prefixes.js && node --check public/translation-core.js && node --check public/translation-ui.js && node --check public/settings-backup.js && node --check public/request-prompts.js && node --check anima-service.mjs && node --check public/anima-skill-ui.js && node --check anima-download.mjs && node --check preferences.mjs && node --check public/settings-store.js && node --check public/prompt-preview.js && node --check updates.mjs && node --check scripts/update-engine.mjs && node --check scripts/build-releases.mjs && node --check scripts/restore-assets.mjs && node --check desktop-lifecycle.mjs && node --check update-manager.mjs && node --check update-worker.mjs && node --check update-engine.mjs && node --check public/desktop-ui.js",
+    "build:anima": "python scripts/build-anima-index.py",
+    "assets": "node --use-env-proxy scripts/restore-assets.mjs",
+    "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1",
+    "prepare:portable": "node scripts/prepare-runtime.mjs"
+  },
+  "engines": {
+    "node": ">=24.5"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.17",
+    "jszip": "3.10.2",
+    "mammoth": "^1.11.0",
+    "marked": "^18.1.1",
+    "pdf-parse": "1.1.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hxxdsk/hui.git"
+  },
+  "homepage": "https://github.com/Hxxdsk/hui",
+  "license": "MIT"
+}

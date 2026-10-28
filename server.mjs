@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { translateWithService } from './translation.mjs';
 import {animaStatus,animaContext,animaValidate,startAnimaInstall,cancelAnimaInstall} from './anima-service.mjs';
 import {createPreferencesStore} from './preferences.mjs';
-import {checkForUpdates,currentVersion} from './updates.mjs';
+import {checkForUpdates,currentVersion,currentDisplayVersion} from './updates.mjs';
 import {createDesktopLifecycle} from './desktop-lifecycle.mjs';
 import {createUpdateManager} from './update-manager.mjs';
 
@@ -46,13 +46,13 @@ export function createApp({translationHandler=translateWithService,preferencesSt
     const pathname = new URL(req.url, 'http://localhost').pathname;
     try {
       if (pathname === '/api/health') return json(res, 200, { ok: true });
-      if (pathname === '/api/version') return json(res,200,{version:currentVersion});
+      if (pathname === '/api/version') return json(res,200,{version:currentVersion,displayVersion:currentDisplayVersion});
       if(pathname==='/api/session/status')return json(res,200,lifecycle.status());
       if (pathname.startsWith('/api/')) {
         if (req.method !== 'POST' || !req.headers['content-type']?.startsWith('application/json')) return json(res, 405, { error: '请使用 JSON POST' });
         const data = await body(req);
         if(pathname==='/api/updates/check')return json(res,200,await checkForUpdates({force:!!data.force}));
-        if(pathname==='/api/updates/status')return json(res,200,{...updates.status(),result:await updates.result()});
+        if(pathname==='/api/updates/status')return json(res,200,{...updates.status(),displayVersion:currentDisplayVersion,result:await updates.result()});
         if(pathname==='/api/updates/start')return json(res,202,updates.start(data.version));
         if(pathname==='/api/session/open')return json(res,200,lifecycle.open(data.id));
         if(pathname==='/api/session/ping')return json(res,200,lifecycle.ping(data.id));
@@ -63,7 +63,7 @@ export function createApp({translationHandler=translateWithService,preferencesSt
           if(pathname==='/api/anima/status')return json(res,200,await animaStatus(data));
           if(pathname==='/api/anima/install')return json(res,202,await startAnimaInstall(data));
           if(pathname==='/api/anima/cancel')return json(res,200,cancelAnimaInstall());
-          const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),660000);
+          const controller=new AbortController();const unlimitedImage=pathname==='/api/anima/context'&&data.localImages&&Array.isArray(data.images)&&data.images.length>0;const timer=unlimitedImage?null:setTimeout(()=>controller.abort(),660000);
           const disconnect=()=>{if(!res.writableEnded)controller.abort();};res.on('close',disconnect);
           try{
             if(pathname==='/api/anima/context')return json(res,200,await animaContext(data,controller.signal));

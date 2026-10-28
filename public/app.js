@@ -137,7 +137,7 @@ async function generate(mode = 'send') {
   $('messages').scrollTop=$('messages').scrollHeight;void persist(chat);
   let count = 0, continueRequest = mode === 'continue';
   try {
-    if(config.taggerEnabled)$('generation-info').textContent='正在准备 anima-tagger 技能…';
+    if(config.taggerEnabled)$('generation-info').textContent=config.taggerLocalImages&&chat.messages.findLast(m=>m.role==='user')?.files?.some(f=>f.type==='image')?'本地 PixAI 图像辅助处理中，请等待完成；可点击停止生成取消…':'正在准备 anima-tagger 技能…';
     const skillContext=await animaSkill.prepare(chat.messages,controller.signal);
     if(skillContext)answer.skill={mode:skillContext.mode,notice:skillContext.notice};else delete answer.skill;
     do {

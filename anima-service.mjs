@@ -31,7 +31,7 @@ function command(file,args,{signal,env=envFor(),timeout=180000,allowFailure=fals
   if(signal?.aborted)return reject(new DOMException('已取消','AbortError'));
   const child=spawn(file,args,{cwd:ROOT,windowsHide:true,env,stdio:['pipe','pipe','pipe']});let stdout='',stderr='',settled=false,timedOut=false;
   const stop=()=>{if(process.platform==='win32'){const killer=spawn('taskkill.exe',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});killer.on('error',()=>child.kill());}else child.kill();};
-  const timer=setTimeout(()=>{timedOut=true;stop();},timeout);signal?.addEventListener('abort',stop,{once:true});
+  const timer=timeout>0?setTimeout(()=>{timedOut=true;stop();},timeout):null;signal?.addEventListener('abort',stop,{once:true});
   const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',stop);error?reject(error):resolve(value);};
   child.stdout.on('data',chunk=>{stdout=(stdout+chunk.toString('utf8')).slice(-3000000);if(log)append(chunk.toString('utf8'));});
   child.stderr.on('data',chunk=>{stderr=(stderr+chunk.toString('utf8')).slice(-18000);if(log)append(chunk.toString('utf8'));});
@@ -41,7 +41,7 @@ function command(file,args,{signal,env=envFor(),timeout=180000,allowFailure=fals
  });
 }
 async function bridge(data,signal){
- const result=await command(PY,[BRIDGE],{input:data,signal,allowFailure:true,timeout:data.op==='tag'?600000:60000});
+ const result=await command(PY,[BRIDGE],{input:data,signal,allowFailure:true,timeout:data.op==='validate'?60000:0});
  let json;try{json=JSON.parse(result.stdout);}catch{throw new Error('本地工具未返回有效结果：'+result.stderr.slice(-500));}
  if(json.error)throw new Error(json.error);return json;
 }

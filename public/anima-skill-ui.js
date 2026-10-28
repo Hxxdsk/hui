@@ -20,8 +20,9 @@ export class AnimaSkill {
  async prepare(messages,signal){
   const c=this.getConfig();if(!c.taggerEnabled)return null;
   const user=messages.findLast(m=>m.role==='user'),images=(user?.files||[]).filter(f=>f.type==='image').map(f=>f.data),data={mode:c.taggerMode,text:user?.text||'',images,localImages:c.taggerLocalImages};
-  // CPU inference is optional evidence; it must not hold a normal API send for minutes.
-  const local=new AbortController(),timer=setTimeout(()=>local.abort(),images.length&&data.localImages?8000:3000);
+  // Local image assistance waits for completion; only the user's signal can cancel it.
+  if(images.length&&data.localImages)return this.api('context',data,signal);
+  const local=new AbortController(),timer=setTimeout(()=>local.abort(),3000);
   try{return await this.api('context',data,AbortSignal.any([signal,local.signal]));}
   catch(error){if(signal.aborted)throw error;const fallback=await this.api('context',{...data,images:[],localImages:false},AbortSignal.any([signal,AbortSignal.timeout(3000)]));if(images.length)fallback.notice='本地辅助未及时完成，图片已直接交给对话模型分析';return fallback;}
   finally{clearTimeout(timer);}

@@ -1,6 +1,8 @@
 import {readFile} from 'node:fs/promises';
 export const RELEASES_URL='https://github.com/Hxxdsk/hui/releases';
-export const currentVersion=JSON.parse(await readFile(new URL('./package.json',import.meta.url),'utf8')).version;
+const metadata=JSON.parse(await readFile(new URL('./package.json',import.meta.url),'utf8'));
+export const currentVersion=metadata.version;
+export const currentDisplayVersion=metadata.displayVersion||currentVersion;
 let cache;
 export async function checkForUpdates({fetcher=fetch,force=false}={}){
  if(!force&&fetcher===fetch&&cache&&Date.now()-cache.time<300000)return cache.value;
@@ -10,5 +12,5 @@ export async function checkForUpdates({fetcher=fetch,force=false}={}){
  const data=await response.json(),version=String(data.tag_name||'').replace(/^v/,'');if(!/^\d+\.\d+\.\d+$/.test(version))throw new Error('发布版本号格式无效');
  const a=version.split('.').map(Number),b=currentVersion.split('.').map(Number);let available=false;for(let i=0;i<3;i++){if(a[i]!==b[i]){available=a[i]>b[i];break;}}
  const assets=(data.assets||[]).filter(asset=>typeof asset.name==='string'&&typeof asset.browser_download_url==='string'&&asset.browser_download_url.startsWith('https://github.com/Hxxdsk/hui/releases/download/')).map(asset=>({name:asset.name,url:asset.browser_download_url,size:asset.size}));
- const value={current:currentVersion,latest:version,available,releasesUrl:RELEASES_URL,notes:typeof data.body==='string'?data.body.slice(0,60000):'',assets,message:available?'发现新版本':'当前已是最新正式版本'};if(fetcher===fetch)cache={time:Date.now(),value};return value;
+ const value={current:currentVersion,latest:version,displayVersion:typeof data.name==='string'?data.name:version,available,releasesUrl:RELEASES_URL,notes:typeof data.body==='string'?data.body.slice(0,60000):'',assets,message:available?'发现新版本':'当前已是最新正式版本'};if(fetcher===fetch)cache={time:Date.now(),value};return value;
 }

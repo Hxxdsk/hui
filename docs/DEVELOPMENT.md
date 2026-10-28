@@ -20,6 +20,6 @@ npm run build:portable
 
 准备命令将 Python 和校验依赖安装在项目内部，不要求全局 Python。完整包带本地运行环境；可选 1.9GB PixAI 权重、API 设置、聊天、测试与缓存不纳入发布。构建器使用来源白名单，复用发布目录不会把运行后产生的个人设置打包。
 
-HuiDesktop.cs 为不显示窗口的桌面进程，管理浏览器页面租约、服务退出、更新接管与重启；HuiLauncher.cs 保留图标与旧预览代码。desktop-lifecycle.mjs 管理多页面及刷新宽限，update-manager.mjs 在确认后下载并校验，update-worker.mjs 在旧进程退出后完成替换与重启。update-engine.mjs 负责差异、备份和事务回滚；HuiUpdater.cs 仅用于无网页更新功能旧版的一次性迁移。维护与资产发布见 [RELEASING](RELEASING.md)。
+HuiDesktop.cs 管理浏览器页面与后台服务，关闭最后一个页面后退出。HuiLauncher.cs 保留图标与预览绘制；Anima 图像处理等待完成并响应用户取消。
 
 不要提交 user-data、.env、配置备份、聊天、模型、运行环境或真实 API Key。上游修改需更新来源和哈希，并保留许可证。

@@ -1,9 +1,9 @@
 {
   "name": "hui-workbench",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "private": true,
   "type": "module",
-  "description": "本地第三方 API 对话与双语 Tag 工作台",
+  "description": "绘 1.0 正式版 · 本地 AI 对话、中英翻译与 Anima Tag 编辑器",
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
@@ -28,5 +28,6 @@
     "url": "https://github.com/Hxxdsk/hui.git"
   },
   "homepage": "https://github.com/Hxxdsk/hui",
-  "license": "MIT"
+  "license": "MIT",
+  "displayVersion": "1.0 正式版"
 }

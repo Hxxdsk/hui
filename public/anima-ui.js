@@ -1,4 +1,4 @@
-import { activeTagFragment, formatAnimaTag, normalizeAnimaTag, hasChinese, candidatePopoverPosition } from './anima-core.js';
+import { activeTagFragment, formatAnimaTag, normalizeAnimaTag, hasChinese, candidatePopoverPosition,tagDropSlot } from './anima-core.js';
 import { prefixState, composePrefixedPrompt } from './prompt-prefixes.js';
 import {PROMPT_CATEGORIES,promptTokens,bilingualChat} from './prompt-preview.js';
 const $=id=>document.getElementById(id);
@@ -56,6 +56,7 @@ export class AnimaEditor {
   }
   openPrefix(id=null){this.prefixEditing=id;const p=this.state.prefixes.find(p=>p.id===id);$('prefix-name').value=p?.name||'';$('prefix-positive').value=p?.positive||'';$('prefix-negative').value=p?.negative||'';$('prefix-delete').classList.toggle('hidden',!p);$('prefix-editor').returnValue='cancel';$('prefix-editor').showModal();}
   render(){
+    this.cancelSort?.();
     const list=$('tag-list');list.replaceChildren();const entries=this.state[this.state.target];
     $('tag-summary').textContent=`${this.state.target==='positive'?'正向':'负向'}标签 · ${entries.length}`;
     for(const [i,t] of entries.entries()){
@@ -89,16 +90,31 @@ export class AnimaEditor {
     }
   }
   startSort(event,chip,entries,index){
-    if(event.button!==0)return;event.preventDefault();this.hideCandidates();
-    const handle=event.currentTarget,list=$('tag-list'),target=this.state.target,start={x:event.clientX,y:event.clientY};let x=start.x,y=start.y,active=false,frame;
-    handle.setPointerCapture(event.pointerId);
-    const place=()=>{const others=[...list.querySelectorAll('.anima-tag')].filter(n=>n!==chip);let best=null,distance=Infinity;for(const item of others){const r=item.getBoundingClientRect(),d=Math.hypot(x-(r.left+r.width/2),y-(r.top+r.height/2));if(d<distance){best=item;distance=d;}}if(best){const r=best.getBoundingClientRect(),after=y>r.bottom||y>=r.top&&x>r.left+r.width/2,ref=after?best.nextSibling:best;if(ref!==chip&&chip.nextSibling!==ref){if(list.moveBefore)list.moveBefore(chip,ref);else{list.insertBefore(chip,ref);handle.setPointerCapture(event.pointerId);}}}};
-    const scroll=()=>{if(active){const r=list.getBoundingClientRect(),panel=$('tools-panel'),pr=panel.getBoundingClientRect(),top=Math.max(r.top,pr.top),bottom=Math.min(r.bottom,pr.bottom);const speed=y<top+55?-Math.ceil((top+55-y)/5):y>bottom-55?Math.ceil((y-bottom+55)/5):0;if(speed){const scroller=list.scrollHeight>list.clientHeight+1?list:panel;scroller.scrollTop+=Math.max(-24,Math.min(24,speed));place();}}frame=requestAnimationFrame(scroll);};
-    handle.onpointermove=e=>{x=e.clientX;y=e.clientY;if(!active&&Math.hypot(x-start.x,y-start.y)>5){active=true;chip.classList.add('sorting');list.classList.add('is-sorting');}if(active)place();};
-    const finish=cancel=>{cancelAnimationFrame(frame);handle.onpointermove=null;handle.onpointerup=null;handle.onpointercancel=null;handle.onlostpointercapture=null;if(handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);list.classList.remove('is-sorting');chip.classList.remove('sorting');if(active&&this.state.target===target&&!cancel){this.state[target]=[...list.querySelectorAll('.anima-tag')].map(n=>entries[Number(n.dataset.index)]);this.render();const moved=this.state[target].indexOf(entries[index]);$('tag-list').children[moved]?.querySelector('.tag-grip').focus({preventScroll:true});}else if(active)this.render();};
-    handle.onpointerup=()=>finish(false);handle.onpointercancel=()=>finish(true);handle.onlostpointercapture=()=>finish(true);frame=requestAnimationFrame(scroll);
+    if(event.button!==0)return;event.preventDefault();this.cancelSort?.();this.hideCandidates();
+    const handle=event.currentTarget,list=$('tag-list'),panel=$('tools-panel'),target=this.state.target,start={x:event.clientX,y:event.clientY},cards=[...list.querySelectorAll('.anima-tag')];
+    let x=start.x,y=start.y,active=false,frame,ghost,marker,rects,origin,listBox,panelBox,slot=index,lastTime=0,finished=false;
+    handle.focus({preventScroll:true});handle.setPointerCapture(event.pointerId);
+    const begin=()=>{active=true;rects=cards.map(n=>{const r=n.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};});listBox=list.getBoundingClientRect();panelBox=panel.getBoundingClientRect();origin={list:list.scrollTop,panel:panel.scrollTop};ghost=chip.cloneNode(true);ghost.classList.add('tag-drag-ghost');ghost.setAttribute('aria-hidden','true');ghost.inert=true;ghost.style.transform=`translate3d(${x-(start.x-rects[index].left)}px,${y-(start.y-rects[index].top)}px,0)`;ghost.style.width=rects[index].width+'px';ghost.style.height=rects[index].height+'px';marker=node('div','tag-drop-marker');marker.setAttribute('aria-hidden','true');marker.hidden=true;document.body.append(ghost,marker);chip.classList.add('sorting');list.classList.add('is-sorting');cards.forEach((n,i)=>{n.dataset.sortHeight=n.style.height;n.style.height=rects[i].height+'px';});};
+    const liveRects=()=>{const offset=(list.scrollTop-origin.list)+(panel.scrollTop-origin.panel);return rects.map(r=>({...r,top:r.top-offset,bottom:r.bottom-offset}));};
+    const tick=time=>{if(finished)return;if(active){const panelShift=panel.scrollTop-origin.panel,top=Math.max(listBox.top-panelShift,panelBox.top),bottom=Math.min(listBox.bottom-panelShift,panelBox.bottom),inside=x>=listBox.left-20&&x<=listBox.right+20&&y>=top-45&&y<=bottom+45;const dt=lastTime?Math.min(32,time-lastTime):16;
+      if(inside){const speed=y<top+42?-Math.min(650,(top+42-y)*15):y>bottom-42?Math.min(650,(y-bottom+42)*15):0;if(speed){const canScrollList=list.scrollHeight>list.clientHeight+1&&(speed<0?list.scrollTop>0:list.scrollTop+list.clientHeight<list.scrollHeight-1);(canScrollList?list:panel).scrollTop+=speed*dt/1000;}}
+      const positions=liveRects();slot=tagDropSlot(positions,x,y);const r=positions[Math.min(slot,positions.length-1)],edge=slot===positions.length?r.bottom:r.top;ghost.style.transform=`translate3d(${x-(start.x-rects[index].left)}px,${y-(start.y-rects[index].top)}px,0)`;marker.style.left=r.left+'px';marker.style.top=(edge-2)+'px';marker.style.width=r.width+'px';marker.hidden=!inside;list.dataset.dropSlot=String(slot);
+    }lastTime=time;frame=requestAnimationFrame(tick);};
+    const finish=(cancel,rerender=true)=>{if(finished)return;finished=true;this.cancelSort=null;cancelAnimationFrame(frame);handle.onpointermove=null;handle.onpointerup=null;handle.onpointercancel=null;handle.onlostpointercapture=null;window.removeEventListener('blur',cancelEvent);window.removeEventListener('resize',cancelEvent);document.removeEventListener('keydown',escape);if(handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);ghost?.remove();marker?.remove();list.classList.remove('is-sorting');chip.classList.remove('sorting');delete list.dataset.dropSlot;cards.forEach(n=>{if(n.dataset.sortHeight!==undefined){n.style.height=n.dataset.sortHeight;delete n.dataset.sortHeight;}});
+      const scroll=list.scrollTop,pageScroll=panel.scrollTop;let destination=index;
+      if(active&&!cancel&&this.state.target===target&&this.state[target]===entries){const r=list.getBoundingClientRect();if(x>=r.left-20&&x<=r.right+20&&y>=Math.max(r.top,panelBox.top)-45&&y<=Math.min(r.bottom,panelBox.bottom)+45){destination=slot>index?slot-1:slot;if(destination!==index){const [item]=entries.splice(index,1);entries.splice(destination,0,item);}}}
+      if(active&&rerender){this.render();list.scrollTop=scroll;panel.scrollTop=pageScroll;list.children[destination]?.querySelector('.tag-grip')?.focus({preventScroll:true});}
+    };
+    const cancelEvent=()=>finish(true),escape=e=>{if(e.key==='Escape'){e.preventDefault();finish(true);}};
+    this.cancelSort=()=>finish(true,false);window.addEventListener('blur',cancelEvent);window.addEventListener('resize',cancelEvent);document.addEventListener('keydown',escape);
+    handle.onpointermove=e=>{x=e.clientX;y=e.clientY;if(!active&&Math.hypot(x-start.x,y-start.y)>6)begin();};handle.onpointerup=e=>{x=e.clientX;y=e.clientY;if(active)slot=tagDropSlot(liveRects(),x,y);finish(false);};handle.onpointercancel=cancelEvent;handle.onlostpointercapture=cancelEvent;frame=requestAnimationFrame(tick);
   }
-  applyPromptFilter(side){const selected=this.previewFilters[side];for(const section of $(side+'-preview').querySelectorAll('.prompt-section')){const hidden=selected.size>0&&!selected.has(section.dataset.kind);section.classList.toggle('is-filtered',hidden);section.setAttribute('aria-hidden',String(hidden));}for(const button of $(side+'-filters').children){const active=button.dataset.kind==='all'?selected.size===0:selected.has(button.dataset.kind);button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));}}
+  applyPromptFilter(side){
+    const selected=this.previewFilters[side],preview=$(side+'-preview');preview.getAnimations().forEach(a=>a.cancel());
+    for(const section of preview.querySelectorAll('.prompt-section')){const hidden=selected.size>0&&!selected.has(section.dataset.kind);section.hidden=hidden;section.classList.toggle('is-filtered',hidden);section.setAttribute('aria-hidden',String(hidden));}
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches)preview.animate([{opacity:.65},{opacity:1}],{duration:140,easing:'ease-out'});
+    for(const button of $(side+'-filters').children){const active=button.dataset.kind==='all'?selected.size===0:selected.has(button.dataset.kind);button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));}
+  }
   refreshPreviewMetadata(){
     if(!this.metadata)return;
     const all=[...promptTokens(this.state,'positive'),...promptTokens(this.state,'negative')].filter(t=>t.kind!=='narrative'),names=[...new Set(all.map(t=>t.text))],signature=names.join('\0');

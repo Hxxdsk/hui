@@ -130,3 +130,13 @@ export class AnimaLexicon {
   }
   origin(row,cn){return row && Number.isInteger(row[6]) && row[4].indexOf(cn)>=row[6]?'扩展词库':'补充词典';}
 }
+// Insertion slots use the original layout; moving the pointer never reorders hit targets.
+export function tagDropSlot(rects,x,y){
+ if(!rects.length)return 0;
+ const rows=[];for(const [index,r]of rects.entries()){let row=rows.at(-1);if(!row||Math.abs(row.top-r.top)>3){row={top:r.top,bottom:r.bottom,items:[]};rows.push(row);}row.bottom=Math.max(row.bottom,r.bottom);row.items.push({...r,index});}
+ if(y<rows[0].top)return 0;if(y>rows.at(-1).bottom)return rects.length;
+ let row=rows[0],distance=Infinity;for(const candidate of rows){const d=Math.abs(y-(candidate.top+candidate.bottom)/2);if(d<distance){distance=d;row=candidate;}}
+ if(rows.every(r=>r.items.length===1))return row.items[0].index+(y>(row.top+row.bottom)/2?1:0);
+ for(const item of row.items)if(x<(item.left+item.right)/2)return item.index;
+ return row.items.at(-1).index+1;
+}

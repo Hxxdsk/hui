@@ -1,6 +1,6 @@
 {
   "name": "hui-workbench",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "private": true,
   "type": "module",
   "description": "本地第三方 API 对话与双语 Tag 工作台",

@@ -1,13 +1,13 @@
 {
   "name": "hui-workbench",
-  "version": "2.5.2",
+  "version": "2.5.3",
   "private": true,
   "type": "module",
   "description": "绘 1.0 正式版 · 本地 AI 对话、中英翻译与 Anima Tag 编辑器",
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check server.mjs && node --check translation.mjs && node --check public/app.js && node --check public/core.js && node --check public/anima-core.js && node --check public/anima-ui.js && node --check public/anima-worker.js && node --check public/prompt-prefixes.js && node --check public/translation-core.js && node --check public/translation-ui.js && node --check public/settings-backup.js && node --check public/request-prompts.js && node --check anima-service.mjs && node --check public/anima-skill-ui.js && node --check anima-download.mjs && node --check preferences.mjs && node --check public/settings-store.js && node --check public/prompt-preview.js && node --check updates.mjs && node --check scripts/update-engine.mjs && node --check scripts/build-releases.mjs && node --check scripts/restore-assets.mjs && node --check desktop-lifecycle.mjs && node --check update-manager.mjs && node --check update-worker.mjs && node --check update-engine.mjs && node --check public/desktop-ui.js",
+    "check": "node --check server.mjs && node --check translation.mjs && node --check public/app.js && node --check public/core.js && node --check public/anima-core.js && node --check public/anima-ui.js && node --check public/anima-worker.js && node --check public/prompt-prefixes.js && node --check public/translation-core.js && node --check public/translation-ui.js && node --check public/settings-backup.js && node --check public/request-prompts.js && node --check anima-service.mjs && node --check public/anima-skill-ui.js && node --check anima-download.mjs && node --check preferences.mjs && node --check public/settings-store.js && node --check public/prompt-preview.js && node --check updates.mjs && node --check scripts/update-engine.mjs && node --check scripts/build-releases.mjs && node --check scripts/restore-assets.mjs && node --check desktop-lifecycle.mjs && node --check update-manager.mjs && node --check update-worker.mjs && node --check update-engine.mjs && node --check public/desktop-ui.js && node --check anima-image.mjs",
     "build:anima": "python scripts/build-anima-index.py",
     "assets": "node --use-env-proxy scripts/restore-assets.mjs",
     "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1",
@@ -29,5 +29,5 @@
   },
   "homepage": "https://github.com/Hxxdsk/hui",
   "license": "MIT",
-  "displayVersion": "1.0 正式版"
+  "displayVersion": "1.0.1 正式版"
 }

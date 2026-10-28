@@ -34,11 +34,27 @@ def run(data):
             result['validator'] = True
         except Exception as error:
             result['errors'].append('精确校验环境：' + str(error))
-        from pixai_config import CPU_MODEL_DIR, verify_assets
-        if not verify_assets(CPU_MODEL_DIR, cpu=True):
+        if data.get('scope') == 'validator':
+            return result
+        from pixai_config import CPU_MODEL_DIR, MODEL_DIR, verify_assets
+        device = data.get('device', 'cpu')
+        if device not in ('cpu', 'cuda'):
+            raise ValueError('Invalid image device')
+        model_dir = CPU_MODEL_DIR if device == 'cpu' else MODEL_DIR
+        result['imageAssetsPresent'] = model_dir.is_dir() and any(model_dir.iterdir())
+        if not verify_assets(model_dir, cpu=device == 'cpu'):
             try:
-                for name in ['onnxruntime','numpy','PIL']:
+                modules = ['onnxruntime','numpy','PIL'] if device == 'cpu' else ['torch','torchvision','transformers','timm','accelerate','safetensors','PIL','numpy']
+                for name in modules:
                     importlib.import_module(name)
+                if device == 'cuda':
+                    import torch
+                    if not torch.cuda.is_available():
+                        raise RuntimeError('NVIDIA CUDA 不可用，请检查显卡及驱动，或卸载后改用 CPU')
+                    # Run a real CUDA kernel: availability alone does not check architecture support.
+                    torch.ones(1, device='cuda').sum().item()
+                    result['gpuName'] = torch.cuda.get_device_name(0)
+                    result['precision'] = 'bf16' if torch.cuda.is_bf16_supported() else 'fp32'
                 result['image'] = True
             except Exception as error:
                 result['errors'].append('本地图像打标：' + str(error))
@@ -61,7 +77,13 @@ def run(data):
         from PIL import Image
         Image.MAX_IMAGE_PIXELS = 36_000_000
         from pixai_tagger import main
-        sys.argv = ['pixai_tagger.py',*data['paths'],'--device','cpu','--json']
+        device = data.get('device', 'cpu')
+        if device not in ('cpu', 'cuda'):
+            raise ValueError('Invalid image device')
+        sys.argv = ['pixai_tagger.py',*data['paths'],'--device',device,'--json']
+        if device == 'cuda':
+            import torch
+            sys.argv += ['--precision', 'bf16' if torch.cuda.is_bf16_supported() else 'fp32']
         captured = io.StringIO()
         with contextlib.redirect_stdout(captured):
             code = main(sys.argv[1:])
@@ -71,9 +93,13 @@ def run(data):
     raise ValueError('未知操作')
 
 if __name__ == '__main__':
+    data = {}
     try:
         data = json.load(sys.stdin)
         print(json.dumps(run(data),ensure_ascii=False))
     except Exception as error:
-        print(json.dumps({'error':str(error)},ensure_ascii=False))
+        message = str(error)
+        if 'out of memory' in message.lower() and isinstance(data, dict) and data.get('device') == 'cuda':
+            message = 'NVIDIA 显存不足，请关闭其他占用显存的软件，或卸载打标环境后改装 CPU 版。\n' + message
+        print(json.dumps({'error':message},ensure_ascii=False))
         sys.exit(1)

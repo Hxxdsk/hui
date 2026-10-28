@@ -23,3 +23,5 @@ npm run build:portable
 HuiDesktop.cs 管理浏览器页面与后台服务，关闭最后一个页面后退出。HuiLauncher.cs 保留图标与预览绘制；Anima 图像处理等待完成并响应用户取消。
 
 不要提交 user-data、.env、配置备份、聊天、模型、运行环境或真实 API Key。上游修改需更新来源和哈希，并保留许可证。
+
+本地打标设备状态保存于 vendor/anima-tagger/.hui-image.json；新图像环境隔离在 .hui-image-python，T5 使用原 .hui-python。两套模型目录均不进入 Git 或发布包；卸载只删除图像运行环境，原有共享 CPU 安装仅卸载 ONNX / NumPy / Pillow。模型和 pip 下载缓存保留。GPU 依赖固定使用上游 PyTorch 2.8.0 cu128 / torchvision 0.23.0，安装前检测 NVIDIA 驱动，安装后执行 CUDA 内核和依赖体检。自动更新清单禁止修改本地图像环境和设备状态。

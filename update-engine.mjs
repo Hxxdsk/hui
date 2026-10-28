@@ -10,7 +10,7 @@ const CORE_ROOTS=new Set(['绘.exe','hui-update.exe','apply-update.mjs','version
 export function managedPath(value){
  if(typeof value!=='string'||!value||value.length>240||value.includes('\\')||value.startsWith('/')||value.includes(':'))return false;
  const parts=value.split('/');if(parts.some(p=>!p||p==='.'||p==='..'||/[. ]$/.test(p)||/[\x00-\x1f<>"|?*]/.test(p)||/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p)))return false;
- const p=value.toLowerCase();if(/(^|\/)(user-data|\.git|\.env[^/]*|\.hui-update|\.work|\.hf-cache|\.pip-cache|\.install-cache|__pycache__)(\/|$)/.test(p)||p==='app/data/user_dict.json'||/\/models\/pixai[^/]*(\/|$)/.test(p))return false;
+ const p=value.toLowerCase();if(/(^|\/)(user-data|\.hui-image-python|\.hui-image\.json(?:\.tmp)?|\.git|\.env[^/]*|\.hui-update|\.work|\.hf-cache|\.pip-cache|\.install-cache|__pycache__)(\/|$)/.test(p)||p==='app/data/user_dict.json'||/\/models\/pixai[^/]*(\/|$)/.test(p))return false;
  return CORE_ROOTS.has(p)||/^(assets|docs|updater|runtime)\//.test(p)||/^app\/(public|data|node_modules|vendor\/anima-tagger)\//.test(p)||/^app\/[a-z0-9_-]+\.(mjs|py|ps1|json)$/.test(p);
 }
 export const corePath=p=>!/^runtime\/|^app\/(?:data|node_modules|vendor\/anima-tagger\/(?:\.hui-python|models))\//i.test(p);

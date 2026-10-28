@@ -5,7 +5,7 @@
 | 名称与作者 | 工程地址 | 使用内容及许可 |
 |---|---|---|
 | anima-prompt-tool · laziji1201（辣子鸡很下饭） | https://github.com/laziji1201/anima-prompt-tool | 中文核心字典、分类、前缀、SQLite；MIT，原源码及许可保留在 vendor/anima-prompt-tool |
-| anima-tagger · Vincent54122 | https://github.com/Vincent54122/anima-tagger | 固定技能规范、创作/扩写/反推、T5 校验与 PixAI CPU 方案；MIT，模型另依上游许可 |
+| anima-tagger · Vincent54122 | https://github.com/Vincent54122/anima-tagger | 固定技能规范、创作/扩写/反推、T5 校验与 PixAI CPU / NVIDIA CUDA 方案；MIT，模型另依上游许可 |
 | comfyui-good-anima · ShiroEirin | https://github.com/ShiroEirin/comfyui-good-anima | Anima-preview.csv；GPL-3.0 许可保留在 data/LICENSE-Anima-preview-GPL-3.0.txt |
 | sd-webui-prompt-all-in-one · Physton | https://github.com/Physton/sd-webui-prompt-all-in-one | 补充中文对照；MIT，来源和许可在 data/sources |
 | PixAI tagger · pixai-labs | https://huggingface.co/pixai-labs/pixai-tagger-v1.0 | 按需下载原模型，模型卡声明 Apache-2.0 |
@@ -32,6 +32,7 @@
 | mammoth | DOCX 提取 | BSD-2-Clause；https://github.com/mwilliamson/mammoth.js |
 | pdf-parse | PDF 提取 | MIT；https://gitlab.com/autokent/pdf-parse |
 | tokenizers / huggingface_hub | 精确计数与部署 | Apache-2.0；环境内 dist-info 保留许可 |
-| ONNX Runtime / NumPy / Pillow | 可选 CPU 推理 | 各自 MIT / BSD / HPND 等许可，保留环境内文件 |
+| PyTorch / torchvision / transformers / timm / accelerate / safetensors | 可选 NVIDIA CUDA 推理 | 各自 BSD / Apache-2.0 等许可；安装环境保留 dist-info 许可，https://pytorch.org/ 与 https://huggingface.co/docs/transformers/ |
+| ONNX Runtime / NumPy / Pillow | 可选 CPU 推理与图像处理 | 各自 MIT / BSD / HPND 等许可，保留环境内文件 |
 
 精确版本由 package-lock.json 和固定部署版本指定。完整包保留依赖许可证。微软 C++ 运行库由官方安装器单独提供，不作为本项目代码重新授权。

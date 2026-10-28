@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { translateWithService } from './translation.mjs';
-import {animaStatus,animaContext,animaValidate,startAnimaInstall,cancelAnimaInstall} from './anima-service.mjs';
+import {animaStatus,animaContext,animaValidate,startAnimaInstall,cancelAnimaInstall,startAnimaUninstall} from './anima-service.mjs';
 import {createPreferencesStore} from './preferences.mjs';
 import {checkForUpdates,currentVersion,currentDisplayVersion} from './updates.mjs';
 import {createDesktopLifecycle} from './desktop-lifecycle.mjs';
@@ -62,6 +62,7 @@ export function createApp({translationHandler=translateWithService,preferencesSt
         if(pathname.startsWith('/api/anima/')){
           if(pathname==='/api/anima/status')return json(res,200,await animaStatus(data));
           if(pathname==='/api/anima/install')return json(res,202,await startAnimaInstall(data));
+          if(pathname==='/api/anima/uninstall')return json(res,202,await startAnimaUninstall());
           if(pathname==='/api/anima/cancel')return json(res,200,cancelAnimaInstall());
           const controller=new AbortController();const unlimitedImage=pathname==='/api/anima/context'&&data.localImages&&Array.isArray(data.images)&&data.images.length>0;const timer=unlimitedImage?null:setTimeout(()=>controller.abort(),660000);
           const disconnect=()=>{if(!res.writableEnded)controller.abort();};res.on('close',disconnect);

@@ -10,11 +10,15 @@ runtime/node.exe
 绘.exe
 
 vendor/anima-tagger/.hui-python/
+vendor/anima-tagger/.hui-image-python/
+vendor/anima-tagger/.hui-image.json
+vendor/anima-tagger/.hui-image.json.tmp
 vendor/anima-tagger/.install-cache/
 vendor/anima-tagger/.pip-cache/
 vendor/anima-tagger/.hf-cache/
 vendor/anima-tagger/.work/
 vendor/anima-tagger/models/pixai-tagger-v1.0-onnx/
+vendor/anima-tagger/models/pixai-tagger-v1.0-original/
 
 user-data/
 .hui-update/

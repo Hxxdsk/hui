@@ -23,7 +23,7 @@ $skillSource = Join-Path $projectRoot 'vendor\anima-tagger'
 $skillTarget = Join-Path $appRoot 'vendor\anima-tagger'
 foreach ($file in Get-ChildItem -LiteralPath $skillSource -Recurse -File -Force) {
     $relative = $file.FullName.Substring($skillSource.Length).TrimStart('\')
-    if ($relative -match '(^|\\)(\.hui-image-python|\.hui-image\.json(?:\.tmp)?|\.install-cache|\.pip-cache|\.hf-cache|\.work|__pycache__|pixai-tagger-v1\.0-onnx|pixai-tagger-v1\.0-original|Scripts)(\\|$)' -or $file.Extension -eq '.pyc') { continue }
+    if ($relative -match '(^|\\)(onnxruntime(?:-[^\\]+\.dist-info)?|numpy(?:\.libs|-[^\\]+\.dist-info)?|PIL|pillow(?:\.libs|-[^\\]+\.dist-info)?|\.hui-image-python|\.hui-image\.json(?:\.tmp)?|\.install-cache|\.pip-cache|\.hf-cache|\.work|__pycache__|pixai-tagger-v1\.0-onnx|pixai-tagger-v1\.0-original|Scripts)(\\|$)' -or $file.Extension -eq '.pyc') { continue }
     $destination = Join-Path $skillTarget $relative
     New-Item -ItemType Directory -Force -Path (Split-Path $destination) | Out-Null
     Copy-Item -LiteralPath $file.FullName -Destination $destination -Force

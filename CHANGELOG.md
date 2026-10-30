@@ -7,7 +7,7 @@
 - 中文悬浮候选、权重、多组正负向前缀、自然语言补充、分类色块与中文对照。
 - 稳定拖动排序、自动滚动、键盘排序和全部清空。
 - anima-tagger 创作、反推、扩写与 T5 精确校验。
-- PixAI 图像辅助可选通用 CPU 或 NVIDIA CUDA 显卡，不设等待时限，可手动取消；支持卸载环境后切换，保留模型与设置。
+- PixAI 图像辅助可选通用 CPU 或 NVIDIA CUDA 显卡，不设等待时限，可手动取消；支持卸载环境后切换，删除对应模型，保留校验器与设置。
 - API 自动保存、配置加密备份和恢复，Windows x64 便携运行。
 
 安装和操作见 README、docs/INSTALL.md 与 docs/USAGE.md。第三方工程及许可见 THIRD_PARTY_NOTICES.md。

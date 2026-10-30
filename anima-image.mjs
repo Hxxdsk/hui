@@ -25,5 +25,16 @@ export function createImageStore(root){
   if(await exists(runtime)){if((await fs.lstat(runtime)).isSymbolicLink())throw new Error('图像运行环境不能是符号链接或目录联接');const target=await fs.realpath(runtime);if(path.dirname(target)!==resolvedRoot)throw new Error('图像运行环境超出程序目录');}
  }
  async function removeRuntime(){await assertRuntimeSafe();await fs.rm(runtime,{recursive:true,force:true});}
- return {runtime,python:path.join(runtime,'python.exe'),read,save,assertRuntimeSafe,removeRuntime,hasRuntime:()=>exists(runtime)};
+ async function removeImageFiles(device){
+  validateImageDevice(device);
+  const names=[device==='cpu'?'models/pixai-tagger-v1.0-onnx':'models/pixai-tagger-v1.0-original','.pip-cache','.hf-cache'];
+  // Validate every path before removing anything; never follow a junction outside this installation.
+  const resolvedRoot=await fs.realpath(root),targets=[];
+  for(const name of names){let current=root;for(const part of name.split('/')){current=path.join(current,part);try{if((await fs.lstat(current)).isSymbolicLink())throw new Error('不能通过符号链接或目录联接删除模型');}catch(e){if(e.code!=='ENOENT')throw e;}}
+   const target=path.resolve(root,name);if(!target.startsWith(root+path.sep))throw new Error('模型路径无效');
+   if(await exists(target)&&!(await fs.realpath(target)).startsWith(resolvedRoot+path.sep))throw new Error('模型超出程序目录');targets.push(target);
+  }
+  for(const target of targets)await fs.rm(target,{recursive:true,force:true});
+ }
+ return {runtime,python:path.join(runtime,'python.exe'),read,save,assertRuntimeSafe,removeRuntime,removeImageFiles,hasRuntime:()=>exists(runtime)};
 }

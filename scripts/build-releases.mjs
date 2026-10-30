@@ -10,7 +10,7 @@ const names=['server.mjs','desktop-lifecycle.mjs','update-manager.mjs','update-w
 const selected=new Set(names.map(name=>'app/'+name));
 async function walk(dir,prefix,filter=()=>true){for(const entry of await fs.readdir(dir,{withFileTypes:true})){const relative=prefix+'/'+entry.name;if(!filter(relative,entry))continue;if(entry.isDirectory())await walk(path.join(dir,entry.name),relative,filter);else if(entry.isFile())selected.add(relative);}}
 for(const name of ['public','data','node_modules'])await walk(path.join(project,name),'app/'+name);
-await walk(path.join(project,'vendor/anima-tagger'),'app/vendor/anima-tagger',(p,e)=>!/(^|\/)(\.hui-image-python|\.hui-image\.json(?:\.tmp)?|\.install-cache|\.pip-cache|\.hf-cache|\.work|__pycache__|pixai-tagger-v1\.0-onnx|pixai-tagger-v1\.0-original|Scripts)(\/|$)/.test(p)&&!p.endsWith('.pyc'));
+await walk(path.join(project,'vendor/anima-tagger'),'app/vendor/anima-tagger',(p,e)=>!/(^|\/)(onnxruntime(?:-[^/]+\.dist-info)?|numpy(?:\.libs|-[^/]+\.dist-info)?|PIL|pillow(?:\.libs|-[^/]+\.dist-info)?|\.hui-image-python|\.hui-image\.json(?:\.tmp)?|\.install-cache|\.pip-cache|\.hf-cache|\.work|__pycache__|pixai-tagger-v1\.0-onnx|pixai-tagger-v1\.0-original|Scripts)(\/|$)/.test(p)&&!p.endsWith('.pyc'));
 for(const name of ['绘.exe','使用教程.txt','README.md','CHANGELOG.md','LICENSE','THIRD_PARTY_NOTICES.md','runtime/node.exe','runtime/LICENSE','assets/hui.ico','assets/brand.png','app/data/LICENSE-anima-prompt-tool.txt'])selected.add(name);
 await walk(path.join(project,'docs'),'docs');
 await fs.writeFile(path.join(root,'version.json'),JSON.stringify({name:'hui',version,repository:'Hxxdsk/hui',platform:'win32-x64'},null,2));selected.add('version.json');

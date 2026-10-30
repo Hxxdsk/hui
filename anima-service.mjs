@@ -176,6 +176,7 @@ export async function startAnimaInstall({kind='validator',device='cpu',proxy='',
     if(installed&&previous.device!==device)throw new Error(`已安装${imageDeviceName(previous.device)}版，请先点击卸载打标环境，再安装${imageDeviceName(device)}版`);
     if(device==='cuda')requireNvidia(await nvidiaDevices(true));
     await imageStore.assertRuntimeSafe();
+    await imageStore.removeImageFiles(device==='cpu'?'cuda':'cpu');
    }
    job.message='检查技能文件';await skillIntegrity(proxy,signal);signal.throwIfAborted();
    await mkdir(RUNTIME,{recursive:true});const cache=path.join(ROOT,'.install-cache');await mkdir(cache,{recursive:true});
@@ -220,15 +221,16 @@ export function cancelAnimaInstall(){installController?.abort();return {...job,m
 export async function startAnimaUninstall(){
  if(job.state==='running')throw new Error('已有安装或卸载任务正在进行');
  if(tagging||validating)throw new Error('请先停止本地打标或等待校验完成，再卸载');
- job={state:'running',kind:'uninstall',message:'正在卸载图像打标环境，保留模型和校验器',log:''};installController=null;
+ job={state:'running',kind:'uninstall',message:'正在删除打标环境、对应模型和缓存',log:''};installController=null;
  (async()=>{
   try{
    await pendingProbe;const state=await imageStore.read();
    await imageStore.assertRuntimeSafe();
    await imageStore.save({...state,enabled:false});
    if(state.runtime==='isolated')await imageStore.removeRuntime();
-   else if(await exists(PY))await command(PY,['-m','pip','uninstall','-y','onnxruntime','numpy','pillow'],{timeout:180000,log:true});
-   probe=null;job.state='done';job.message='图像打标环境已卸载；模型、下载缓存、T5 校验和设置均已保留，可选择另一种设备安装';
+   if(await exists(PY))await command(PY,['-m','pip','uninstall','-y','onnxruntime','numpy','pillow'],{timeout:180000,log:true});
+   await imageStore.removeImageFiles(state.device);
+   probe=null;job.state='done';job.message='打标环境、对应模型和缓存已删除；T5 校验和设置已保留，可选择另一种设备安装';
   }catch(error){probe=null;job.state='failed';job.message='卸载未完成：'+error.message;append('\n'+job.message);}
  })();return {...job};
 }

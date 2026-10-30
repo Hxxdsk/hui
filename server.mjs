@@ -56,6 +56,7 @@ export function createApp({translationHandler=translateWithService,preferencesSt
         if(pathname==='/api/updates/start')return json(res,202,updates.start(data.version));
         if(pathname==='/api/session/open')return json(res,200,lifecycle.open(data.id));
         if(pathname==='/api/session/ping')return json(res,200,lifecycle.ping(data.id));
+        if(pathname==='/api/session/quit')return json(res,200,lifecycle.quit());
         if(pathname==='/api/session/close')return json(res,200,lifecycle.close(data.id));
         if(pathname==='/api/preferences/load')return json(res,200,await preferencesStore.load());
         if(pathname==='/api/preferences/save')return json(res,200,await preferencesStore.save(data));

@@ -1,6 +1,6 @@
 {
   "name": "hui-workbench",
-  "version": "2.5.3",
+  "version": "2.5.4",
   "private": true,
   "type": "module",
   "description": "绘 1.0 正式版 · 本地 AI 对话、中英翻译与 Anima Tag 编辑器",
@@ -29,5 +29,5 @@
   },
   "homepage": "https://github.com/Hxxdsk/hui",
   "license": "MIT",
-  "displayVersion": "1.0.1 正式版"
+  "displayVersion": "1.0.2 正式版"
 }

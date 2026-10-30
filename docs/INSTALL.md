@@ -6,7 +6,7 @@
 2. 完整解压到有写权限的目录，例如 D:\Apps\hui。不要在 ZIP 内运行，也不要只移动 EXE。
 3. 双击绘.exe 直接进入网页，无需安装全局 Node、Python、Git 或 npm。
 4. 设置 → API 连接：填写第三方 Base URL 和 Key，检测模型或输入模型 ID。API 自动保存，其他设置点击保存。
-5. 关闭最后一个绘网页，后台自动结束并释放端口；刷新、切换后台或打开多个页面不会误退出。
+5. 关闭网页、后台休眠或心跳中断都不会停止服务；在侧栏点击“退出绘”主动结束服务并释放端口。
 
 支持 Windows 10 / 11 x64；保留同目录 app、runtime、assets。其他系统可尝试源码运行，原生 EXE 面向 Windows。
 
@@ -49,7 +49,7 @@ npm start
 
 - CPU：通用，无需独立显卡；至少保留 3GB 可用内存，速度取决于处理器。
 - NVIDIA 显卡：CUDA 加速，通常更快；需要兼容 CUDA 12.8 的 NVIDIA 显卡及 Windows 驱动 570.65 或更高，建议 8GB 及以上显存。Intel / AMD 显卡请选择 CPU。程序自动安装 PyTorch CUDA，无需单独安装 CUDA Toolkit。安装时检查驱动和 CUDA 内核，不支持时显示原因。
-- 已安装用户：先点击“卸载打标环境”，再选择另一种设备并安装。旧 CPU 安装会自动识别。卸载保留两种模型文件、下载缓存、T5 校验、API 与聊天设置。再次安装相同路线时校验并复用已有模型。CPU 与显卡版使用不同权重，各约 1.9GB，显卡依赖还需数 GB 空间。
+- 已安装用户：先点击“卸载打标环境”，再选择另一种设备并安装。旧 CPU 安装会自动识别。卸载删除对应图像环境、模型和下载缓存，仅保留 T5 校验及设置。已卸载的模型需重新下载。CPU 与显卡版使用不同权重，各约 1.9GB，显卡依赖还需数 GB 空间。
 - 图像辅助不限制等待时间，可随时点击停止生成。显卡版按硬件自动选择 BF16 或 FP32；显存不足需关闭其他占用显存的软件，或卸载后改用 CPU。
 
 运行环境依据：[PyTorch 2.8 安装方案](https://pytorch.org/get-started/previous-versions/)、[CUDA 12.8 Windows 驱动说明](https://docs.nvidia.com/cuda/archive/12.8.0/cuda-toolkit-release-notes/index.html)。

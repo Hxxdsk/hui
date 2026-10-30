@@ -25,6 +25,14 @@ test('image environment uninstall preserves both weight formats, validator, cach
  for(const name of preserved)assert.equal(await fs.readFile(path.join(root,name),'utf8'),name);
  await store.save({device:'cpu',runtime:'isolated',enabled:true});assert.equal((await store.read()).device,'cpu');
 });
+test('deleting one image version removes its weights and caches while preserving the other model, validator and settings',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'hui-image-delete-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const store=createImageStore(root);
+ const names=['models/pixai-tagger-v1.0-onnx/weights','models/pixai-tagger-v1.0-original/weights','.hui-python/python.exe','.pip-cache/torch.whl','.hf-cache/model','settings.json'];
+ for(const name of names){const file=path.join(root,name);await fs.mkdir(path.dirname(file),{recursive:true});await fs.writeFile(file,name);}
+ await store.removeImageFiles('cuda');
+ for(const name of ['models/pixai-tagger-v1.0-original/weights','.pip-cache/torch.whl','.hf-cache/model'])await assert.rejects(fs.access(path.join(root,name)));
+ for(const name of ['models/pixai-tagger-v1.0-onnx/weights','.hui-python/python.exe','settings.json'])assert.equal(await fs.readFile(path.join(root,name),'utf8'),name);
+});
 test('uninstall refuses a linked runtime and update manifests cannot alter personal image environments or weights',async t=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'hui-image-link-')),outside=await fs.mkdtemp(path.join(os.tmpdir(),'hui-image-outside-'));
  t.after(async()=>{await fs.rm(root,{recursive:true,force:true});await fs.rm(outside,{recursive:true,force:true});});

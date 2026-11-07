@@ -1,4 +1,4 @@
-import {activeTagFragment, normalizeAnimaTag, parseAnimaPrompt} from './anima-core.js';
+import {activeTagFragment, normalizeAnimaTag, parseAnimaPrompt, referenceTagKey} from './anima-core.js';
 import {isEastAsianName} from './artist-directory.js';
 import {parseNaiPrompt} from './nai-prompt.js';
 
@@ -245,8 +245,8 @@ export class TagReference {
     const status=$('reference-status'), gallery=$('reference-images');
     for(const button of $('reference-terms').children)button.setAttribute('aria-pressed',String(button===selected));
     gallery.replaceChildren();
-    const key=tag.replace(/\s+/g,'_');
-    if(!/^(?!-):?[a-z0-9_()'.!+&-]{1,139}$/i.test(key)){
+    const key=referenceTagKey(tag);
+    if(!key){
       this.batch=null;
       $('reference-refresh').disabled=true;
       $('reference-links').classList.add('hidden');

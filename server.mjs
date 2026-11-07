@@ -9,6 +9,7 @@ import {createPreferencesStore} from './preferences.mjs';
 import {checkForUpdates,currentVersion,currentDisplayVersion} from './updates.mjs';
 import {createDesktopLifecycle} from './desktop-lifecycle.mjs';
 import {createUpdateManager} from './update-manager.mjs';
+import {referenceTagKey} from './public/anima-core.js';
 
 const publicRoot = fileURLToPath(new URL('./public/', import.meta.url));
 const MAX_BODY = 36 * 1024 * 1024;
@@ -26,27 +27,40 @@ function json(res, status, data) {
   res.end(JSON.stringify(data));
 }
 const referenceSites = [
-  {label:'Danbooru',origin:'https://danbooru.donmai.us',mediaDomain:'donmai.us'},
-  {label:'AIBooru',origin:'https://aibooru.online',mediaDomain:'aibooru.online'}
+  {label:'Danbooru',origin:'https://danbooru.donmai.us',mediaHosts:['cdn.donmai.us','danbooru.donmai.us']},
+  {label:'AIBooru',origin:'https://aibooru.online',mediaHosts:['cdn.aibooru.download','cdn.aibooru.online','aibooru.online']}
 ];
+async function requestReferencePosts(url,request,signal){
+  for(const timeout of [2500,3500]){
+    const deadline=AbortSignal.timeout(timeout);
+    const attempt=signal?AbortSignal.any([signal,deadline]):deadline;
+    attempt.throwIfAborted();
+    try{
+      const response=await request(url,{redirect:'error',signal:attempt,headers:{'User-Agent':'HuiTagWorkbench/1.0 (github.com/Hxxdsk/hui)'}});
+      if(response.ok)return await response.json();
+      if(timeout===3500||(response.status!==408&&response.status<500))return null;
+      await response.body?.cancel();
+    }catch(error){
+      if(signal?.aborted||timeout===3500)throw error;
+    }
+  }
+}
 export async function findReferencePosts({tag,page,rating}, request=fetch, signal) {
   const allowed=rating==='all'?['g','s','q','e']:['g'];
-  const batches=await Promise.allSettled(referenceSites.map(async ({label,origin,mediaDomain})=>{
+  const batches=await Promise.allSettled(referenceSites.map(async ({label,origin,mediaHosts})=>{
     const url=new URL('/posts.json',origin);
     url.search=new URLSearchParams({tags:rating==='all'?tag:tag+' rating:g',page:String(page),limit:'3'});
-    const timeout=AbortSignal.timeout(6000);
-    const response=await request(url,{redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout,headers:{'User-Agent':'HuiTagWorkbench/1.0 (github.com/Hxxdsk/hui)'}});
-    if(!response.ok)throw new Error(label+' '+response.status);
-    const posts=await response.json();
+    const posts=await requestReferencePosts(url,request,signal);
     if(!Array.isArray(posts))throw new Error(label+' returned an invalid response');
     const images=[];
     for(const post of posts){
       if(!post||!Number.isSafeInteger(post.id)||post.id<1||!allowed.includes(post.rating))continue;
-      const variant=post.media_asset?.variants?.find?.(item=>item?.type==='360x360')?.url;
-      const preview=URL.parse(variant||post.preview_file_url||'',origin);
-      if(preview?.protocol!=='https:'||preview.username||preview.password||preview.port||
-         !(preview.hostname===mediaDomain||preview.hostname.endsWith('.'+mediaDomain))||
-         !/\.(?:jpe?g|png|webp|avif)$/i.test(preview.pathname))continue;
+      const variants=post.media_asset?.variants;
+      const variant=Array.isArray(variants)?variants.find(item=>item?.type==='360x360')?.url:undefined;
+      const preview=[variant,post.preview_file_url].map(value=>URL.parse(value||'',origin)).find(url=>
+        url?.protocol==='https:'&&!url.username&&!url.password&&!url.port&&mediaHosts.includes(url.hostname)&&
+        /\.(?:jpe?g|png|webp|avif)$/i.test(url.pathname));
+      if(!preview)continue;
       images.push({thumbnail:preview.href,url:origin+'/posts/'+post.id,label});
     }
     return images.slice(0,3);
@@ -81,7 +95,7 @@ export function createApp({translationHandler=translateWithService,preferencesSt
         const data = await body(req);
         if(pathname==='/api/tag-reference'){
           const {tag,page,rating}=data;
-          if(typeof tag!=='string'||!/^(?!-):?[a-z0-9_()'.!+&-]{1,139}$/i.test(tag)||
+          if(typeof tag!=='string'||!tag||referenceTagKey(tag)!==tag||
              !Number.isInteger(page)||page<1||page>1000||!['general','all'].includes(rating)){
             return json(res,400,{error:'参考图查询参数无效'});
           }
@@ -185,11 +199,11 @@ export function createApp({translationHandler=translateWithService,preferencesSt
         res.writeHead(200, { 'Content-Type':name.endsWith('.json')?'application/json; charset=utf-8':name.endsWith('.csv')?'text/csv; charset=utf-8':'text/plain; charset=utf-8', 'Cache-Control':'no-cache', ...(name==='Anima-preview.csv'?{'Content-Disposition':'attachment; filename="Anima-preview.csv"'}:{}) });
         res.end(await readFile(fileURLToPath(new URL(`./data/${name}`,import.meta.url))));return;
       }
-      const files = { '/': 'index.html', '/app.js': 'app.js', '/desktop-ui.js':'desktop-ui.js', '/core.js': 'core.js', '/style.css': 'style.css', '/anima.css':'anima.css', '/features.css':'features.css', '/hui.css':'hui.css', '/patchouli.css':'patchouli.css', '/workbench.css':'workbench.css', '/brand.svg':'brand.svg', '/prompt-preview.css':'prompt-preview.css', '/prompt-preview.js':'prompt-preview.js', '/settings-store.js':'settings-store.js', '/settings-backup.js':'settings-backup.js', '/request-prompts.js':'request-prompts.js', '/anima-skill-ui.js':'anima-skill-ui.js', '/anima-core.js':'anima-core.js', '/tag-reference.js':'tag-reference.js', '/translation-tags.js':'translation-tags.js', '/artist-directory.js':'artist-directory.js', '/tag-workspace.css':'tag-workspace.css', '/nai-prompt.js':'nai-prompt.js', '/nai-lexicon.js':'nai-lexicon.js', '/anima-ui.js':'anima-ui.js', '/anima-worker.js':'anima-worker.js', '/prompt-prefixes.js':'prompt-prefixes.js', '/translation-core.js':'translation-core.js', '/translation-ui.js':'translation-ui.js' };
+      const files = { '/': 'index.html', '/app.js': 'app.js', '/desktop-ui.js':'desktop-ui.js', '/core.js': 'core.js', '/style.css': 'style.css', '/anima.css':'anima.css', '/features.css':'features.css', '/hui.css':'hui.css', '/patchouli.css':'patchouli.css', '/workbench.css':'workbench.css', '/brand.svg':'brand.svg', '/hui-hat-icon.svg':'brand.svg', '/prompt-preview.css':'prompt-preview.css', '/prompt-preview.js':'prompt-preview.js', '/settings-store.js':'settings-store.js', '/settings-backup.js':'settings-backup.js', '/request-prompts.js':'request-prompts.js', '/anima-skill-ui.js':'anima-skill-ui.js', '/anima-core.js':'anima-core.js', '/tag-reference.js':'tag-reference.js', '/translation-tags.js':'translation-tags.js', '/artist-directory.js':'artist-directory.js', '/tag-workspace.css':'tag-workspace.css', '/nai-prompt.js':'nai-prompt.js', '/nai-lexicon.js':'nai-lexicon.js', '/anima-ui.js':'anima-ui.js', '/anima-worker.js':'anima-worker.js', '/prompt-prefixes.js':'prompt-prefixes.js', '/translation-core.js':'translation-core.js', '/translation-ui.js':'translation-ui.js' };
       const file = files[pathname];
       if (!file) return json(res, 404, { error: 'Not found' });
       const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg':'image/svg+xml' }[path.extname(file)];
-      res.writeHead(200, { 'Content-Type': `${mime}; charset=utf-8`, 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob: https://latent.moe https://*.latent.moe https://*.donmai.us https://aibooru.online https://*.aibooru.online; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" });
+      res.writeHead(200, { 'Content-Type': `${mime}; charset=utf-8`, 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob: https://latent.moe https://*.latent.moe https://*.donmai.us https://aibooru.online https://*.aibooru.online https://cdn.aibooru.download; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" });
       res.end(await readFile(path.join(publicRoot, file)));
     } catch (error) {
       if (res.headersSent) { res.destroy(); return; }

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {findReferencePosts} from '../server.mjs';
+import {referenceTagKey} from '../public/anima-core.js';
 
 test('including adult references keeps general results, removes the rating filter and rejects unrelated media hosts',async()=>{
   const request=async url=>{
@@ -29,4 +30,25 @@ test('a reference source remains available if the other fails, with general-rate
   });
   assert.equal(result.unavailable,1);
   assert.deepEqual(result.images.map(image=>image.url),['https://aibooru.online/posts/1']);
+});
+
+test('character qualifiers preserve literal colons without allowing top-level search operators',()=>{
+  assert.equal(referenceTagKey('robin (honkai: star rail)'),'robin_(honkai:_star_rail)');
+  assert.equal(referenceTagKey('robin_(honkai:_star_rail)'),'robin_(honkai:_star_rail)');
+  assert.equal(referenceTagKey(':3'),':3');
+  for(const tag of ['rating:e','robin rating:e','robin_(honkai:_star_rail','-robin','robin)'])assert.equal(referenceTagKey(tag),'');
+});
+
+test('a transient AIBooru failure retries once and accepts the gallery CDN',async()=>{
+  const tag=referenceTagKey('robin (honkai: star rail)');
+  let aiAttempts=0;
+  const result=await findReferencePosts({tag,page:1,rating:'general'},async url=>{
+    assert.equal(url.searchParams.get('tags'),'robin_(honkai:_star_rail) rating:g');
+    if(url.hostname==='danbooru.donmai.us')return Response.json([]);
+    if(++aiAttempts===1)throw new TypeError('connection reset');
+    return Response.json([{id:44,rating:'g',media_asset:{variants:[{type:'360x360',url:'//cdn.aibooru.download/360x360/aa/bb/sample.webp'}]}}]);
+  });
+  assert.equal(aiAttempts,2);
+  assert.equal(result.unavailable,0);
+  assert.equal(result.images[0].thumbnail,'https://cdn.aibooru.download/360x360/aa/bb/sample.webp');
 });

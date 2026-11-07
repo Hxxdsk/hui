@@ -1,6 +1,18 @@
 // Browser/Node shared utilities. Matching follows anima-prompt-tool's core-first,
 // longest-match approach. All dictionary candidates are filtered by the CSV index.
 export const hasChinese = text => /[\u3400-\u9fff]/u.test(text);
+export function referenceTagKey(value) {
+  const key=normalizeAnimaTag(value).replaceAll(' ','_');
+  if(!/^(?!-)[a-z0-9_():'.!+&-]{1,140}$/i.test(key))return '';
+  let depth=0;
+  for(let index=0;index<key.length;index++){
+    const char=key[index];
+    if(char==='(')depth++;
+    if(char===')'&&--depth<0)return '';
+    else if(char===':'&&index>0&&depth===0)return '';
+  }
+  return depth===0?key:'';
+}
 export function normalizeAnimaTag(value) {
   let tag = String(value).normalize('NFKC').replace(/\\([()[\]\\])/g,'$1').trim().toLowerCase().replace(/\s+/g,' ');
   if (/^by\s+/.test(tag)) tag = '@' + tag.replace(/^by\s+/,'');

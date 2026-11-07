@@ -25,6 +25,34 @@ function json(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(data));
 }
+const referenceSites = [
+  {label:'Danbooru',origin:'https://danbooru.donmai.us',mediaDomain:'donmai.us'},
+  {label:'AIBooru',origin:'https://aibooru.online',mediaDomain:'aibooru.online'}
+];
+export async function findReferencePosts({tag,page,rating}, request=fetch, signal) {
+  const allowed=rating==='all'?['g','s','q','e']:['g'];
+  const batches=await Promise.allSettled(referenceSites.map(async ({label,origin,mediaDomain})=>{
+    const url=new URL('/posts.json',origin);
+    url.search=new URLSearchParams({tags:rating==='all'?tag:tag+' rating:g',page:String(page),limit:'3'});
+    const timeout=AbortSignal.timeout(6000);
+    const response=await request(url,{redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout,headers:{'User-Agent':'HuiTagWorkbench/1.0 (github.com/Hxxdsk/hui)'}});
+    if(!response.ok)throw new Error(label+' '+response.status);
+    const posts=await response.json();
+    if(!Array.isArray(posts))throw new Error(label+' returned an invalid response');
+    const images=[];
+    for(const post of posts){
+      if(!post||!Number.isSafeInteger(post.id)||post.id<1||!allowed.includes(post.rating))continue;
+      const variant=post.media_asset?.variants?.find?.(item=>item?.type==='360x360')?.url;
+      const preview=URL.parse(variant||post.preview_file_url||'',origin);
+      if(preview?.protocol!=='https:'||preview.username||preview.password||preview.port||
+         !(preview.hostname===mediaDomain||preview.hostname.endsWith('.'+mediaDomain))||
+         !/\.(?:jpe?g|png|webp|avif)$/i.test(preview.pathname))continue;
+      images.push({thumbnail:preview.href,url:origin+'/posts/'+post.id,label});
+    }
+    return images.slice(0,3);
+  }));
+  return {images:batches.flatMap(batch=>batch.status==='fulfilled'?batch.value:[]),unavailable:batches.filter(batch=>batch.status==='rejected').length};
+}
 async function body(req) {
   let size = 0; const chunks = [];
   for await (const chunk of req) {
@@ -51,6 +79,21 @@ export function createApp({translationHandler=translateWithService,preferencesSt
       if (pathname.startsWith('/api/')) {
         if (req.method !== 'POST' || !req.headers['content-type']?.startsWith('application/json')) return json(res, 405, { error: '请使用 JSON POST' });
         const data = await body(req);
+        if(pathname==='/api/tag-reference'){
+          const {tag,page,rating}=data;
+          if(typeof tag!=='string'||!/^(?!-):?[a-z0-9_()'.!+&-]{1,139}$/i.test(tag)||
+             !Number.isInteger(page)||page<1||page>1000||!['general','all'].includes(rating)){
+            return json(res,400,{error:'参考图查询参数无效'});
+          }
+          const controller=new AbortController();
+          const cancel=()=>controller.abort();
+          res.once('close',cancel);
+          try{
+            const results=await findReferencePosts({tag,page,rating},fetch,controller.signal);
+            if(!controller.signal.aborted)return json(res,200,results);
+          }finally{res.off('close',cancel);}
+          return;
+        }
         if(pathname==='/api/updates/check')return json(res,200,await checkForUpdates({force:!!data.force}));
         if(pathname==='/api/updates/status')return json(res,200,{...updates.status(),displayVersion:currentDisplayVersion,result:await updates.result()});
         if(pathname==='/api/updates/start')return json(res,202,updates.start(data.version));
@@ -136,17 +179,17 @@ export function createApp({translationHandler=translateWithService,preferencesSt
         res.writeHead(200, { 'Content-Type':'text/javascript; charset=utf-8', 'Cache-Control':'no-cache' });
         res.end(await readFile(path.join(publicRoot,vendor[pathname]))); return;
       }
-      const dataFiles = { '/data/anima-index.json':'anima-index.json', '/data/Anima-preview.csv':'Anima-preview.csv', '/data/SOURCES.md':'SOURCES.md' };
+      const dataFiles = { '/data/anima-index.json':'anima-index.json', '/data/Anima-preview.csv':'Anima-preview.csv', '/data/nai-tags.csv':'nai-tags.csv', '/data/artist-names.json':'artist-names.json', '/data/SOURCES.md':'SOURCES.md' };
       if(dataFiles[pathname]) {
         const name=dataFiles[pathname];
-        res.writeHead(200, { 'Content-Type':name.endsWith('.json')?'application/json; charset=utf-8':name.endsWith('.csv')?'text/csv; charset=utf-8':'text/plain; charset=utf-8', 'Cache-Control':'no-cache', ...(name.endsWith('.csv')?{'Content-Disposition':'attachment; filename="Anima-preview.csv"'}:{}) });
+        res.writeHead(200, { 'Content-Type':name.endsWith('.json')?'application/json; charset=utf-8':name.endsWith('.csv')?'text/csv; charset=utf-8':'text/plain; charset=utf-8', 'Cache-Control':'no-cache', ...(name==='Anima-preview.csv'?{'Content-Disposition':'attachment; filename="Anima-preview.csv"'}:{}) });
         res.end(await readFile(fileURLToPath(new URL(`./data/${name}`,import.meta.url))));return;
       }
-      const files = { '/': 'index.html', '/app.js': 'app.js', '/desktop-ui.js':'desktop-ui.js', '/core.js': 'core.js', '/style.css': 'style.css', '/anima.css':'anima.css', '/features.css':'features.css', '/hui.css':'hui.css', '/patchouli.css':'patchouli.css', '/workbench.css':'workbench.css', '/brand.svg':'brand.svg', '/prompt-preview.css':'prompt-preview.css', '/prompt-preview.js':'prompt-preview.js', '/settings-store.js':'settings-store.js', '/settings-backup.js':'settings-backup.js', '/request-prompts.js':'request-prompts.js', '/anima-skill-ui.js':'anima-skill-ui.js', '/anima-core.js':'anima-core.js', '/anima-ui.js':'anima-ui.js', '/anima-worker.js':'anima-worker.js', '/prompt-prefixes.js':'prompt-prefixes.js', '/translation-core.js':'translation-core.js', '/translation-ui.js':'translation-ui.js' };
+      const files = { '/': 'index.html', '/app.js': 'app.js', '/desktop-ui.js':'desktop-ui.js', '/core.js': 'core.js', '/style.css': 'style.css', '/anima.css':'anima.css', '/features.css':'features.css', '/hui.css':'hui.css', '/patchouli.css':'patchouli.css', '/workbench.css':'workbench.css', '/brand.svg':'brand.svg', '/prompt-preview.css':'prompt-preview.css', '/prompt-preview.js':'prompt-preview.js', '/settings-store.js':'settings-store.js', '/settings-backup.js':'settings-backup.js', '/request-prompts.js':'request-prompts.js', '/anima-skill-ui.js':'anima-skill-ui.js', '/anima-core.js':'anima-core.js', '/tag-reference.js':'tag-reference.js', '/translation-tags.js':'translation-tags.js', '/artist-directory.js':'artist-directory.js', '/tag-workspace.css':'tag-workspace.css', '/nai-prompt.js':'nai-prompt.js', '/nai-lexicon.js':'nai-lexicon.js', '/anima-ui.js':'anima-ui.js', '/anima-worker.js':'anima-worker.js', '/prompt-prefixes.js':'prompt-prefixes.js', '/translation-core.js':'translation-core.js', '/translation-ui.js':'translation-ui.js' };
       const file = files[pathname];
       if (!file) return json(res, 404, { error: 'Not found' });
       const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg':'image/svg+xml' }[path.extname(file)];
-      res.writeHead(200, { 'Content-Type': `${mime}; charset=utf-8`, 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" });
+      res.writeHead(200, { 'Content-Type': `${mime}; charset=utf-8`, 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob: https://latent.moe https://*.latent.moe https://*.donmai.us https://aibooru.online https://*.aibooru.online; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" });
       res.end(await readFile(path.join(publicRoot, file)));
     } catch (error) {
       if (res.headersSent) { res.destroy(); return; }

@@ -13,8 +13,9 @@ export function validateBackup(raw) {
   if(raw.config.maxTokens!==undefined && raw.config.contextBudget!==undefined && raw.config.contextBudget<=raw.config.maxTokens+512)throw new Error('备份上下文预算不足');
   if(raw.config.translationService && !['follow','openai','volcengine','deepl'].includes(raw.config.translationService))throw new Error('备份翻译服务无效');
   if(raw.config.tokenField && !['max_tokens','max_completion_tokens'].includes(raw.config.tokenField))throw new Error('备份输出参数无效');
+  if(raw.nai?.nltags!==undefined && typeof raw.nai.nltags!=='string')throw new Error('NovelAI 备份自然语言补充无效');
   if(raw.anima?.nltags!==undefined && typeof raw.anima.nltags!=='string')throw new Error('备份自然语言补充无效');
-  if (raw.anima) for (const field of ['positive','negative']) if (!Array.isArray(raw.anima[field]) || raw.anima[field].length>20000 || raw.anima[field].some(t=>!t||typeof t.text!=='string'||t.text.length>2000||!Number.isFinite(t.weight)||t.weight<.1||t.weight>5)) throw new Error('备份标签格式无效');
+  for(const [draft,min] of [[raw.anima,.1],[raw.nai,-5]]) if(draft) for (const field of ['positive','negative']) if (!Array.isArray(draft[field]) || draft[field].length>20000 || draft[field].some(t=>!t||typeof t.text!=='string'||t.text.length>2000||!Number.isFinite(t.weight)||t.weight<min||t.weight>5)) throw new Error('备份标签格式无效');
   return raw;
 }
 export async function encodeBackup(raw, password = '') {

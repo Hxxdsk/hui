@@ -11,6 +11,7 @@
 | PixAI tagger · pixai-labs | https://huggingface.co/pixai-labs/pixai-tagger-v1.0 | 按需下载原模型，模型卡声明 Apache-2.0 |
 | PixAI ONNX · noaione | https://huggingface.co/noaione/pixai-tagger-v1.0-onnx | 按需下载 CPU 转换，模型卡声明 Apache-2.0 |
 | T5 · Google | https://huggingface.co/google/t5-v1_1-xxl | 上游技能提供的转换版 tokenizer；Apache-2.0 来源声明 |
+| booru_artists_merged · supercatdoing | https://huggingface.co/datasets/supercatdoing/booru_artists_merged | Danbooru 画师记录的公开别名；CC0-1.0，固定版本见 data/SOURCES.md |
 
 ## 固定版本与修改范围
 
@@ -36,3 +37,5 @@
 | ONNX Runtime / NumPy / Pillow | 可选 CPU 推理与图像处理 | 各自 MIT / BSD / HPND 等许可，保留环境内文件 |
 
 精确版本由 package-lock.json 和固定部署版本指定。完整包保留依赖许可证。微软 C++ 运行库由官方安装器单独提供，不作为本项目代码重新授权。
+
+NovelAI 中文标签数据来自 [zhulinyv/Auto-NovelAI-Refactor](https://github.com/zhulinyv/Auto-NovelAI-Refactor)，固定提交 `22477fedfb5f80fab32d7b9f1d634aee13952a`。原始 CSV 按 GPL-3.0 随附，见 `data/sources/LICENSE-nai-tags.txt`。

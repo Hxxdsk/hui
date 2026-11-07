@@ -9,3 +9,15 @@
 `user_dict.json` 支持 `{ "中文别名": "english tag" }` 或 `{ "中文别名": ["分组", "english tag"] }`。自定义 tag 必须在 CSV 中命中，再重新构建索引。
 
 重建只需要 Python 3.9+ 标准库；日常使用只需要原有 Node.js 环境，所有词库已随程序配置。下载的上游源码通过 AST 读取字面量，不执行其 GUI、脚本或技能指令。打包或再次分发时请连同这些数据来源与对应许可证保留。
+
+### NovelAI 中文词库
+
+NovelAI 模式使用 [Auto-NovelAI-Refactor 的 Danbooru 中文 CSV](https://github.com/zhulinyv/Auto-NovelAI-Refactor/blob/22477fedfb5f80fab32d7b9f1d634aee13952a/assets/danbooru_tags_full_zh.csv)，原文件 Git blob 为 `8062e7423b835e495448d28cca5b4d973e9036a2`。数据按 GPL-3.0 分发，许可见 `sources/LICENSE-nai-tags.txt`。候选结合已有中文别名和 [NovelAI 官方控制词](https://docs.novelai.net/en/image/tags/)，词库命中表示可检索，并非官方对每个模型的识别验证。
+
+### 联网参考图与画师
+
+Tag 参考图通过 [Latent 图像查询 API](https://latent.moe/docs/api) 按标签分别检索 Anima 和 NovelAI，并结合 [Danbooru](https://danbooru.donmai.us/) 与 [AIBooru](https://aibooru.online/) 的同标签参考图。默认只显示全年龄图片；勾选「包含成人内容（18+）」后，Danbooru 与 AIBooru 改为搜索全部分级，Latent 的全年龄生成样例继续显示。点击「换一批」继续当前标签和分级，点击图片打开来源。Latent 样例的生成参数可能不同。图片联网加载，绘无需保存图片。从 [TAGs Gallery](https://tags.gallery/en) 或 [NovelAI Artist Showcase](https://github.com/theapexxx/novelai_artist_showcase) 复制标签或画师组合后，可在任一模式粘贴到「画师串」。
+
+`artist-names.json` 来自 [booru_artists_merged](https://huggingface.co/datasets/supercatdoing/booru_artists_merged/tree/eaf7d54a6b3cd29fd8a6144f0b621967ed0c1130/data) 的 Danbooru 画师记录，CC0-1.0。只保留 222,788 条带东亚文字公开别名的画师记录，索引包含标准标签、作品计数和公开别名。别名包含原文笔名，中文覆盖取决于公开资料。常用写法另外对照 [TAGs Gallery 的朝凪条目](https://tags.gallery/artist/asanagi)、[Bangumi 的王凌条目](https://chii.in/person/72118) 和[千種みのり的中文版书目](https://zh.wikipedia.org/wiki/%E6%96%B9%E4%BE%BF%E7%9A%84%E9%99%AA%E8%B7%91%E5%8F%8B)。
+
+重建画师索引可安装 PyArrow 后执行 `python scripts/build-artist-names.py <Parquet 文件>`。原始 Parquet 的 SHA-256 为 `e5f41e27d762fe15f732e01144ddf569e239960d3f1a679a58a0ed07a7ca8e19`。

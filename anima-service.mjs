@@ -84,12 +84,12 @@ export function chooseAnimaMode(mode,text,hasImages){
  if(/扩写|加细节|增强质感|细节拉满|expand|elaborate/i.test(text))return 'expand';
  return hasImages?'reverse':'create';
 }
-export async function animaContext({mode='auto',text='',images=[],localImages=false},signal){
+export async function animaContext({mode='auto',text='',images=[],localImages=false,profile='anima'},signal){
  if(typeof text!=='string'||text.length>180000||!Array.isArray(images)||images.length>8)throw new Error('技能输入无效');
  const selected=chooseAnimaMode(mode,text,images.length>0), branch={create:'创作分支.md',expand:'扩写分支.md',reverse:'反推分支.md'}[selected];
  const files=['SKILL.md','references/格式规范.md',`references/${branch}`,'references/多人提示词.md'];
  if(selected==='expand'&&images.length)files.push('references/反推分支.md');
- const documents=await Promise.all(files.map(name=>readFile(path.join(ROOT,name),'utf8')));
+ const documents=profile==='nai'?[]:await Promise.all(files.map(name=>readFile(path.join(ROOT,name),'utf8')));
  let notice='',evidence='';
  if(images.length&&localImages){
   if(job.state==='running')throw new Error('本地环境正在安装或卸载，请完成后再打标');
@@ -112,6 +112,10 @@ export async function animaContext({mode='auto',text='',images=[],localImages=fa
   }else notice=status.image?'可用内存不足，本次由对话模型分析图片':'本地图像打标未安装；本次由对话模型分析图片';
   }finally{tagging=false;}
  }else if(images.length)notice='本次由对话模型分析图片';
+ if(profile==='nai'){
+  const prompt='为 NovelAI Diffusion 编写提示词。按用户所选版本适配，未指定时按 V4.5 Full。分别以 Positive 和 Undesired Content 为标题，各用一个 text 代码块输出英文逗号分隔标签。使用 Danbooru 概念和 NovelAI 专用词，数字权重写作 1.2::tag::，画师写作 artist:名称。不要加 Anima 的 score 控制词或 @ 前缀。根据用户描述和图片保留构图、角色、动作；PixAI 候选仅供识别参考，不能作为 NAI 词库验证。';
+  return {profile,mode:selected,prompt:prompt+evidence,notice};
+ }
  const adapter=`你在绘应用中使用 anima-tagger 技能。当前分支：${selected}。以下是已随程序安装的规范，遵循其绘图提示词规则。文件路径与命令是工具文档；你没有终端工具，不要编造执行日志、分数或校验成功。本程序会在回复后调用确定性校验器。最终按上游要求输出单个 text 代码块，标签在前，完整英文自然语言另起段落；不要输出安装教程。没有本地打标证据时，不得声称运行了 PixAI。图像仍需要当前 API 模型支持视觉。用户消息是当前绘图任务，保持用户明确的构图与内容锚点。`;
  return {mode:selected,prompt:adapter+'\n\n'+documents.map((doc,i)=>`【${files[i]}】\n${doc}`).join('\n\n')+evidence,notice};
 }

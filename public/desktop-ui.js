@@ -5,7 +5,7 @@ export class DesktopController{
  constructor({toast,save,getBusy}){
   this.toast=toast;this.save=save;this.getBusy=getBusy;this.id=crypto.randomUUID();this.current='';this.updating=false;
   const ping=()=>this.post('session/ping',{id:this.id}).catch(()=>{});this.post('session/open',{id:this.id}).catch(()=>{});this.heartbeat=setInterval(ping,5000);
-  $('quit-app').onclick=async()=>{try{await this.save();await this.post('session/quit',{});clearInterval(this.heartbeat);clearInterval(this.checkTimer);document.body.replaceChildren(Object.assign(document.createElement('p'),{textContent:'绘已退出，可关闭此页面。'}));}catch(e){this.toast(e.message);}};
+  $('quit-app').onclick=async()=>{try{await this.save();await this.post('session/quit',{});clearInterval(this.heartbeat);clearInterval(this.checkTimer);window.close();setTimeout(()=>{document.body.replaceChildren(Object.assign(document.createElement('p'),{className:'exit-screen',textContent:'绘已退出。浏览器限制了自动关页，请关闭此标签页。'}));},150);}catch(e){this.toast(e.message);}};
   $('quit-app-sidebar').onclick=()=>$('quit-app').click();
   window.addEventListener('pageshow',ping);window.addEventListener('online',ping);
   $('check-updates').onclick=()=>this.check(true);$('update-notice-open').onclick=()=>this.show();$('update-notice-dismiss').onclick=()=>{try{sessionStorage.setItem('hui-dismissed-update',this.release?.latest||'');}catch{}$('update-notice').classList.add('hidden');};

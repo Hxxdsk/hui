@@ -57,7 +57,8 @@ export function candidatePopoverPosition(rect,viewport){
 }
 const specialControls = tag => /^score_\d+$/.test(tag) || /^year (?:19|20)\d{2}$/.test(tag);
 export class AnimaLexicon {
-  constructor(index) {
+  constructor(index,parse=parseAnimaPrompt) {
+    this.parse=parse;
     this.index=index; this.exact=new Map(); this.aliases=new Map(); this.core=new Map(); this.chinese=new Map(); this.coreTags=new Set();
     for(const row of index.entries) { this.exact.set(row[0],row); }
     for(const row of index.entries) for(const alias of row[3]) if(!this.aliases.has(alias)) this.aliases.set(alias,row[0]);
@@ -108,7 +109,7 @@ export class AnimaLexicon {
   convert(raw) {
     const tags=[],misses=[],seen=new Set();
     const push=(tag,weight,source,cn='')=>{const item=this.lookup(tag); if(!seen.has(item.tag)) {seen.add(item.tag);tags.push({...item,text:item.tag,weight,source,cn:cn||item.cn});}};
-    for(const part of parseAnimaPrompt(raw)) {
+    for(const part of this.parse(raw)) {
       const text=part.text;
       if(!hasChinese(text)) { if(text) { const info=this.lookup(text); push(info.tag,part.weight,info.source); } continue; }
       let i=0,miss=''; const flush=()=>{if(miss.trim())misses.push(miss.trim());miss='';};

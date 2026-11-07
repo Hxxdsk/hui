@@ -18,10 +18,12 @@
 
 支持跟随对话 API、独立兼容接口、火山翻译原生 AK/SK 和 DeepL。原生翻译服务使用内置端点，不需要填写模型网址。
 
-### Anima Tag 工作台
+### Anima / NovelAI Tag 工作台
 
 - 离线检索 111,513 条表内标签、86,585 条中文别名，完整保存并校验原项目 334,048 行 SQLite 扩展词库。
 - 中文输入显示悬浮候选，支持整段 Prompt 转换、权重、正负向标签和自然语言补充。
+- Anima 和 NovelAI 各自保存草稿与前缀模板。按「编写与取材 → 整理标签 → 预览与复制」切换工作区。
+- 「画师串」按公开画师别名检索中文名或原名，可将候选加入正向 Prompt，或联网查看示例图。两种模式按各自语法输出。
 - 多列标签列表可拉高或展开全部；手柄拖动显示插入位置，支持边缘自动滚动和键盘排序。
 - 正负向 Prompt 用柔和底色与颜色图例区分用途；类别筛选只影响预览，保留原始顺序。
 - 可勾选中文括注，复制仅保留英文原文和权重；插入对话时同时区分正负向内容。
@@ -104,3 +106,5 @@ API 设置在 user-data/settings.json（便携版为 app/user-data/settings.json
 | [Google T5](https://huggingface.co/google/t5-v1_1-xxl) | 上游技能的转换 tokenizer，Apache-2.0 来源声明 |
 
 原创代码采用 [MIT](LICENSE)。第三方工程、数据、模型维持各自许可，不全部重标为 MIT。固定提交、归属、版本和许可证位置见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)、[数据来源](data/SOURCES.md) 与各 LICENSE。
+
+在 Tag 编辑器顶部可切换 **Anima / NovelAI**。两套模式分别保存正负向草稿和模板，也会分别纳入设置备份。NovelAI 模式支持本地中文候选、V4.5 Full 和 V5 画质模板，以及数字权重。PixAI 图片识别可以共用，提示词整理按当前模式执行。

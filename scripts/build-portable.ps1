@@ -35,10 +35,19 @@ New-Item -ItemType Directory -Force -Path $assets,$buildTools | Out-Null
 & $compiler /nologo /target:exe /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /out:"$buildTools\IconBuilder.exe" "$PSScriptRoot\HuiMark.cs" "$PSScriptRoot\IconBuilder.cs"
 if ($LASTEXITCODE -ne 0) { throw 'Icon build failed' }
 & "$buildTools\IconBuilder.exe" "$assets\hui.ico" "$assets\brand.png"
+if ($LASTEXITCODE -ne 0) { throw 'Icon generation failed' }
 Copy-Item -LiteralPath $assets -Destination $packageRoot -Recurse -Force
 & $compiler /nologo /codepage:65001 /target:winexe /win32icon:"$assets\hui.ico" /platform:anycpu /win32manifest:"$PSScriptRoot\HuiLauncher.manifest" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /out:"$packageRoot\绘.exe" "$PSScriptRoot\HuiLauncher.cs" "$PSScriptRoot\HuiMark.cs" "$PSScriptRoot\HuiDesktop.cs"
 if ($LASTEXITCODE -ne 0) { throw 'EXE 编译失败' }
 Copy-DevelopmentRuntime (Join-Path $packageRoot '绘.exe') (Join-Path $projectRoot '绘.exe')
+Add-Type -Namespace Hui.Build -Name Shell -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("shell32.dll", CharSet=System.Runtime.InteropServices.CharSet.Unicode)]
+public static extern void SHChangeNotify(int eventId, uint flags, string path, System.IntPtr unused);
+'@
+foreach ($launcher in @((Join-Path $projectRoot '绘.exe'), (Join-Path $packageRoot '绘.exe'))) {
+    # SHCNE_UPDATEITEM with SHCNF_PATHW tells Explorer to refresh this file.
+    [Hui.Build.Shell]::SHChangeNotify(0x2000, 0x0005, $launcher, [IntPtr]::Zero)
+}
 New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'runtime') | Out-Null
 Copy-DevelopmentRuntime (Get-Command node.exe).Source (Join-Path $projectRoot 'runtime\node.exe')
 

@@ -1,3 +1,5 @@
+import {TagReference} from './tag-reference.js';
+import {NAI_PREFIXES, formatNaiTag, validNaiWeight} from './nai-prompt.js';
 import { activeTagFragment, formatAnimaTag, normalizeAnimaTag, hasChinese, candidatePopoverPosition,tagDropSlot } from './anima-core.js';
 import { prefixState, composePrefixedPrompt } from './prompt-prefixes.js';
 import {PROMPT_CATEGORIES,promptTokens,bilingualChat} from './prompt-preview.js';
@@ -10,44 +12,100 @@ export class AnimaEditor {
     this.translateTags=translateTags;this.previewMetadata=new Map();this.previewFilters={positive:new Set(),negative:new Set()};this.translationPending=new Set();this.translationFailed=new Set();this.state.translations={};this.state.previewChinese=false;this.translationVersion=0;
     try {
       const cached=JSON.parse(localStorage.getItem('lantern-anima-v1')||'null');
-      if(cached){for(const key of ['positive','negative'])this.state[key]=(Array.isArray(cached[key])?cached[key]:[]).filter(t=>typeof t.text==='string'&&Number.isFinite(t.weight)&&t.weight>=.1&&t.weight<=5).map(t=>({...t,text:normalizeAnimaTag(t.text)}));Object.assign(this.state,prefixState(cached));this.state.nltags=String(cached.nltags||'').slice(0,32000);this.state.translations=cached.translations&&typeof cached.translations==='object'?cached.translations:{};this.state.previewChinese=!!cached.previewChinese;}
+      if(cached){for(const key of ['positive','negative'])this.state[key]=(Array.isArray(cached[key])?cached[key]:[]).filter(t=>typeof t.text==='string'&&Number.isFinite(t.weight)&&t.weight>=.1&&t.weight<=5).map(t=>({...t,text:normalizeAnimaTag(t.text)}));Object.assign(this.state,prefixState(cached));this.state.nltags=String(cached.nltags||'').slice(0,32000);this.state.translations=cached.translations&&typeof cached.translations==='object'?cached.translations:{};this.state.previewChinese=!!cached.previewChinese;this.state.target=cached.target==='negative'?'negative':'positive';this.state.input=String(cached.input||'');this.state.artistInput=String(cached.artistInput||'');}
       else {const old=JSON.parse(localStorage.getItem('lantern-tags')||'[]');if(Array.isArray(old))this.state.positive=old.filter(t=>typeof t.text==='string'&&!hasChinese(t.text)&&Number.isFinite(t.weight)&&t.weight>=.1&&t.weight<=5).map(t=>({...t,text:normalizeAnimaTag(t.text)}));}
     }catch{}
-    $('anima-nltags').value=this.state.nltags;
-    this.bind();this.render();
+    this.mode='anima';
+    this.states={anima:this.state,nai:this.readNaiDraft()};
+    this.reference=new TagReference(this);
+    this.bind();
+    this.activate(localStorage.getItem('hui-tag-mode')==='nai'?'nai':'anima');
   }
+  restoreDrafts(anima,nai){
+    if(anima)this.states.anima={...structuredClone(anima),...prefixState(anima),mode:'anima',target:anima.target==='negative'?'negative':'positive'};
+    if(nai)this.states.nai=this.naiDraft(structuredClone(nai));
+    for(const [mode,state] of Object.entries(this.states)){
+      localStorage.setItem(mode==='nai'?'hui-nai-tags-v1':'lantern-anima-v1',JSON.stringify(state));
+    }
+    this.activate(this.mode);
+    this.ensureReady().catch(error=>this.toast(error.message));
+  }
+  readNaiDraft(){
+    let draft={};
+    try{draft=JSON.parse(localStorage.getItem('hui-nai-tags-v1')||'{}')||{};}catch{}
+    return this.naiDraft(draft);
+  }
+  naiDraft(draft){
+    return {positive:[],negative:[],nltags:'',translations:{},previewChinese:false,...draft,
+      ...prefixState({prefixes:NAI_PREFIXES,...draft}),mode:'nai',target:draft.target==='negative'?'negative':'positive'};
+  }
+  activate(mode,load=false){
+    if(load&&mode===this.mode)return;
+    if(load){this.state.input=$('tag-input').value;this.save();}
+    this.editRevision=(this.editRevision||0)+1;this.modeEpoch=(this.modeEpoch||0)+1;
+    this.hideCandidates();this.cancelSort?.();this.translationVersion++;this.translationController?.abort();
+    this.translationFailed.clear();this.previewMetadata.clear();this.previewMetaSignature=null;
+    this.previewFilters={positive:new Set(),negative:new Set()};
+    this.metadata=null;this.loading=null;this.mode=mode;this.state=this.states[mode];
+    const nai=mode==='nai';
+    for(const key of ['anima','nai'])$('tag-mode-'+key).setAttribute('aria-pressed',String(key===mode));
+    $('translation-to-tags').textContent='发送到 '+(nai?'NovelAI':'Anima')+' →';
+    $('tag-input').value=this.state.input||'';
+    $('anima-nltags').value=this.state.nltags||'';
+    $('tag-target').value=this.state.target;
+    $('arrange-target').value=this.state.target;
+    $('anima-group').value='all';
+    $('tag-input').placeholder=nai?'试试：长发、黑丝、七分身\n也可粘贴：1.3::long hair::, [smile]':'试试：长发、银发、微笑、看镜头\n也可粘贴：(long_hair:2), score_9';
+    $('tag-preset-label').textContent=nai?'NovelAI 正负向模板':'正负面前缀方案';
+    $('tag-preset-hint').textContent=nai?'正向画质词放在标签之后，负向模板放在开头。两边独立勾选。':'正面和负面可分别勾选多组前缀。';
+    $('edit-tag-weight').min=nai?'-5':'0.1';
+    $('tag-weight-hint').textContent=nai?'使用数字权重。0 和负数用于支持此语法的 NovelAI 模型。':'使用 ComfyUI 的 (tag:权重) 格式。';
+    $('anima-status').textContent='输入中文搜索'+(nai?' NovelAI':' Anima')+' 标签。';
+    this.reference.reset();this.showMisses([]);this.render();
+    if(load)this.ensureReady().catch(error=>this.toast(error.message));
+  }
+  formatTag(entry){return this.mode==='nai'?formatNaiTag(entry):formatAnimaTag(entry);}
+  validWeight(weight){return this.mode==='nai'?validNaiWeight(weight):Number.isFinite(weight)&&weight>=.1&&weight<=5;}
   ensureReady() {
     if(this.loading)return this.loading;
-    $('anima-status').textContent='正在载入 Anima 本地索引…';
-    this.worker=new Worker('/anima-worker.js',{type:'module'});
+    const revision=this.modeEpoch,mode=this.mode;
+    $('anima-status').textContent='正在载入 '+(mode==='nai'?'NovelAI':'Anima')+' 本地索引…';
+    this.worker??=new Worker('/anima-worker.js',{type:'module'});
     this.worker.onmessage=event=>{const task=this.pending.get(event.data.id);if(!task)return;clearTimeout(task.timer);this.pending.delete(event.data.id);event.data.error?task.reject(new Error(event.data.error)):task.resolve(event.data.result);};
     this.worker.onerror=()=>{for(const task of this.pending.values()){clearTimeout(task.timer);task.reject(new Error('词库加载失败，请检查服务已启动并刷新页面'));}this.pending.clear();};
     this.loading=this.rpc('init').then(async meta=>{
+      if(revision!==this.modeEpoch)return meta;
       this.metadata=meta;$('anima-status').textContent=`${meta.tags.toLocaleString()} 个表内标签 · ${meta.chineseAliases.toLocaleString()} 条中文别名${meta.originalSqliteRows?' · 33 万扩展已启用':''}`;
       for(const target of ['positive','negative']){
-        const rows=await this.rpc('lookup',{tags:this.state[target].map(t=>t.text)});
-        this.state[target]=this.state[target].map((t,i)=>({...t,...rows[i],text:t.text}));
+        const entries=this.state[target],names=entries.map(t=>t.text);
+        const rows=await this.rpc('lookup',{tags:names});
+        if(revision!==this.editRevision)return meta;
+        if(this.state[target]===entries)entries.forEach((entry,i)=>{if(entry.text===names[i])Object.assign(entry,rows[i]);});
       }
       this.render();this.refreshPreviewMetadata();return meta;
-    }).catch(error=>{$('anima-status').textContent=error.message;throw error;});
+    }).catch(error=>{if(revision===this.modeEpoch){this.loading=null;$('anima-status').textContent=error.message;}throw error;});
     return this.loading;
   }
   rpc(type,data={}) {
-    return new Promise((resolve,reject)=>{const id=++this.nextId;const timer=setTimeout(()=>{this.pending.delete(id);reject(new Error('本地词库处理超时，请缩短输入后重试'));},60000);this.pending.set(id,{resolve,reject,timer});this.worker.postMessage({id,type,...data});});
+    return new Promise((resolve,reject)=>{const id=++this.nextId;const timer=setTimeout(()=>{this.pending.delete(id);reject(new Error('本地词库处理超时，请缩短输入后重试'));},60000);this.pending.set(id,{resolve,reject,timer});this.worker.postMessage({id,type,mode:this.mode,...data});});
   }
-  save(){try{localStorage.setItem('lantern-anima-v1',JSON.stringify(this.state));}catch{this.toast('Tag 设置保存失败，请复制 Prompt 备份');}}
+  save(){try{localStorage.setItem(this.mode==='nai'?'hui-nai-tags-v1':'lantern-anima-v1',JSON.stringify(this.state));localStorage.setItem('hui-tag-mode',this.mode);}catch{this.toast('Tag 设置保存失败，请复制 Prompt 备份');}}
   translated(text){const value=this.state.translations?.[text];return typeof value==='string'?value:'';}
   async addTags(values,options={}) {
     const target=options.target||this.state.target,revision=this.editRevision||0;
     try {
-      await this.ensureReady();const result=await this.rpc('convert',{text:values.join(', ')});if(revision!==(this.editRevision||0))return null;let count=0;
+      await this.ensureReady();if(revision!==this.editRevision)return null;const result=await this.rpc(options.fromTranslation?'convert-translation':'convert',{text:values.join(', ')});if(revision!==(this.editRevision||0))return null;let count=0;
       for(const entry of result.tags){if(!this.state[target].some(t=>t.text===entry.text)){this.state[target].push(entry);count++;}}
-      this.showMisses(result.misses);this.render();this.toast(result.misses.length?`加入 ${count} 个标签；${result.misses.length} 段中文未匹配，已保留提示`:`已加入 ${count} 个标签${count?'':'（重复项已跳过）'}`);return result;
+      this.showMisses(result.misses);this.render();
+      const summary=result.misses.length?`加入 ${count} 个标签；${result.misses.length} 段中文未匹配`:`已加入 ${count} 个标签`;
+      this.toast(summary+(result.unsupported?.length?'；跳过当前模式不支持的标签或权重：'+result.unsupported.join('、'):''));
+      return result;
     }catch(error){this.toast(error.message);return null;}
   }
   showMisses(misses){const box=$('unmatched-tags');box.replaceChildren();box.classList.toggle('hidden',!misses.length);if(misses.length){box.append(node('strong','','未匹配的中文 · 不进入 Prompt'),node('p','',misses.join(' / ')),node('small','','可换词检索；复杂动作请在自然语言补充区用英文表达。'));}}
-  positiveOutput(){return composePrefixedPrompt(this.state.prefixes,this.state.positivePrefixes,'positive',this.state.positive.map(formatAnimaTag).join(', '),this.state.nltags);}
-  negativeOutput(){return composePrefixedPrompt(this.state.prefixes,this.state.negativePrefixes,'negative',this.state.negative.map(formatAnimaTag).join(', '));}
+  naiOutput(side){const tokens=promptTokens(this.state,side);return [tokens.filter(t=>t.source!=='nl').map(t=>t.raw).join(', '),side==='positive'?this.state.nltags.trim():''].filter(Boolean).join('\n');}
+  positiveOutput(){if(this.mode==='nai')return this.naiOutput('positive');return composePrefixedPrompt(this.state.prefixes,this.state.positivePrefixes,'positive',this.state.positive.map(t=>this.formatTag(t)).join(', '),this.state.nltags);}
+  negativeOutput(){if(this.mode==='nai')return this.naiOutput('negative');return composePrefixedPrompt(this.state.prefixes,this.state.negativePrefixes,'negative',this.state.negative.map(t=>this.formatTag(t)).join(', '));}
   renderOutputs(){$('tag-output').value=this.positiveOutput();$('negative-output').value=this.negativeOutput();this.renderPromptPreviews();this.save();this.refreshPreviewMetadata();this.queueTranslations();}
   renderPrefixes(){
     const list=$('prefix-list');list.replaceChildren();
@@ -118,8 +176,9 @@ export class AnimaEditor {
   refreshPreviewMetadata(){
     if(!this.metadata)return;
     const all=[...promptTokens(this.state,'positive'),...promptTokens(this.state,'negative')].filter(t=>t.kind!=='narrative'),names=[...new Set(all.map(t=>t.text))],signature=names.join('\0');
+    const epoch=this.modeEpoch;
     if(signature===this.previewMetaSignature)return;this.previewMetaSignature=signature;
-    this.rpc('lookup',{tags:names}).then(rows=>{if(signature!==this.previewMetaSignature)return;names.forEach((name,i)=>this.previewMetadata.set(name,rows[i]));this.renderPromptPreviews();this.queueTranslations();}).catch(()=>{this.previewMetaSignature='';});
+    this.rpc('lookup',{tags:names}).then(rows=>{if(epoch!==this.modeEpoch||signature!==this.previewMetaSignature)return;names.forEach((name,i)=>this.previewMetadata.set(name,rows[i]));this.renderPromptPreviews();this.queueTranslations();}).catch(()=>{if(epoch===this.modeEpoch)this.previewMetaSignature='';});
   }
   translationConfigurationChanged(){this.translationVersion++;this.translationController?.abort();this.translationFailed.clear();this.queueTranslations();}
   queueTranslations(){
@@ -137,11 +196,17 @@ export class AnimaEditor {
   hideCandidates(){this.searchVersion++;$('anima-candidates').classList.add('hidden');$('tag-input').setAttribute('aria-expanded','false');$('tag-input').removeAttribute('aria-activedescendant');}
   position(){const r=$('tag-input').getBoundingClientRect(),popup=$('anima-candidates'),p=candidatePopoverPosition(r,{width:innerWidth,height:innerHeight});popup.style.width=`${p.width}px`;popup.style.left=`${p.left}px`;popup.style.top=`${p.top}px`;popup.style.maxHeight=`${p.height}px`;}
   async search(){
-    const field=$('tag-input');const fragment=activeTagFragment(field.value,field.selectionStart,field.selectionEnd);const version=++this.searchVersion;
+    const field=$('tag-input');const fragment=activeTagFragment(field.value,field.selectionStart,field.selectionEnd);
+    if(this.mode==='nai'){
+      const numeric=fragment.text.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))::(.*?)(?:::)?$/);
+      if(numeric){fragment.start+=numeric[1].length+2;fragment.text=numeric[2];fragment.end=fragment.start+fragment.text.length;fragment.weight=Number(numeric[1]);}
+      else if(/^[{[]/.test(fragment.text)){const lead=fragment.text.match(/^[{[]+/)[0];fragment.start+=lead.length;fragment.text=fragment.text.slice(lead.length).replace(/[}\]]+$/,'');fragment.end=fragment.start+fragment.text.length;fragment.weight=Number([...lead].reduce((w,c)=>c==='{'?w*1.05:w/1.05,1).toFixed(3));}
+    }
+    const version=++this.searchVersion;
     if(!fragment.text.trim()){this.hideCandidates();return;}
     if(fragment.text.length>500){this.hideCandidates();return;}
     try{
-      await this.ensureReady();const matches=await this.rpc('search',{query:fragment.text,options:{group:$('anima-group').value,limit:24}});
+      await this.ensureReady();if(version!==this.searchVersion)return;const matches=await this.rpc('search',{query:fragment.text,options:{group:$('anima-group').value,limit:24}});
       if(version!==this.searchVersion||document.activeElement!==field)return;
       this.fragment=fragment;this.queryValue=field.value;this.candidates=matches;this.selected=0;
       $('anima-query-label').textContent=`“${fragment.text.slice(0,18)}” · ${matches.length} 个候选`;
@@ -150,7 +215,9 @@ export class AnimaEditor {
       for(const [i,item] of matches.entries()){
         const option=node('button','anima-option');option.id=`anima-option-${i}`;option.type='button';option.setAttribute('role','option');
         const main=node('div');main.append(node('strong','',item.cn||item.tag),node('span','anima-option-en',item.tag));
-        const detail=node('small','',`${item.group} · ${item.source} · ${item.count.toLocaleString()}`);option.append(main,detail);
+        const example=node('span','candidate-example','示例 ↗');example.title='查看参考图';
+        example.onclick=e=>{e.stopPropagation();$('reference-query').value=item.tag;this.reference.search(item.tag);this.hideCandidates();$('reference-query').scrollIntoView({block:'center'});};
+        const detail=node('small','',`${item.group} · ${item.source} · ${item.count.toLocaleString()}`);option.append(main,detail,example);
         option.onpointerdown=e=>e.preventDefault();option.onclick=()=>this.choose(i);option.onpointermove=()=>{this.selected=i;this.highlight();};list.append(option);
       }
       $('anima-candidates').classList.remove('hidden');field.setAttribute('aria-expanded','true');this.position();this.highlight(false);
@@ -159,19 +226,28 @@ export class AnimaEditor {
   highlight(scroll=true){const options=$('anima-candidate-list').querySelectorAll('[role=option]');options.forEach((n,i)=>{n.classList.toggle('selected',i===this.selected);n.setAttribute('aria-selected',String(i===this.selected));});if(options[this.selected]){$('tag-input').setAttribute('aria-activedescendant',options[this.selected].id);if(scroll)options[this.selected].scrollIntoView({block:'nearest'});}}
   choose(index){
     const item=this.candidates[index],field=$('tag-input');if(!item||field.value!==this.queryValue)return this.hideCandidates();
-    const weight=this.fragment.weight||1;if(weight<.1||weight>5)return this.toast('标签权重需在 0.1–5 之间');
+    const weight=this.fragment.weight??1;if(!this.validWeight(weight))return this.toast('标签权重超出当前模式范围');
     const target=this.state[this.state.target];if(!target.some(t=>t.text===item.tag))target.push({...item,text:item.tag,weight});
     const start=this.fragment.start+item.start,end=this.fragment.start+item.end;
     const original=field.value;field.value=original.slice(0,start)+item.tag+original.slice(end);
     let caret=start+item.tag.length;
     if(end===original.length){field.value+=', ';caret+=2;}
-    this.hideCandidates();this.render();field.focus();field.setSelectionRange(caret,caret);
+    this.state.input=field.value;this.hideCandidates();this.render();field.focus();field.setSelectionRange(caret,caret);
   }
   bind(){
+    const steps=$('tag-steps');
+    for(const button of steps.querySelectorAll('[data-step]'))button.onclick=()=>{
+      this.hideCandidates();this.reference.hideArtists();
+      for(const item of steps.querySelectorAll('[data-step]')){if(item===button)item.setAttribute('aria-current','step');else item.removeAttribute('aria-current');}
+      for(const panel of $('tags-panel').querySelectorAll('[data-stage]'))panel.classList.toggle('hidden',panel.dataset.stage!==button.dataset.step);
+      $('tools-panel').scrollTop=0;
+    };
+    $('arrange-target').onchange=()=>{$('tag-target').value=$('arrange-target').value;$('tag-target').onchange();};
+    for(const mode of ['anima','nai'])$('tag-mode-'+mode).onclick=()=>this.activate(mode,true);
     let composing=false,timer;
     const schedule=()=>{clearTimeout(timer);this.hideCandidates();if(!composing)timer=setTimeout(()=>this.search(),130);};
     $('tag-input').addEventListener('compositionstart',()=>{composing=true;this.hideCandidates();});$('tag-input').addEventListener('compositionend',()=>{composing=false;schedule();});
-    $('tag-input').addEventListener('input',()=>{this.showMisses([]);schedule();});$('tag-input').addEventListener('click',schedule);$('tag-input').addEventListener('focus',()=>this.ensureReady().catch(e=>this.toast(e.message)));
+    $('tag-input').addEventListener('input',()=>{this.state.input=$('tag-input').value;this.save();this.showMisses([]);schedule();});$('tag-input').addEventListener('click',schedule);$('tag-input').addEventListener('focus',()=>this.ensureReady().catch(e=>this.toast(e.message)));
     $('tag-input').addEventListener('keydown',e=>{
       if(composing||e.isComposing)return;
       if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();$('split-tags').click();return;}
@@ -180,13 +256,13 @@ export class AnimaEditor {
       if(e.key==='ArrowDown'||e.key==='ArrowUp'){if(!open){e.preventDefault();this.search();return;}if(this.candidates.length){e.preventDefault();this.selected=(this.selected+(e.key==='ArrowDown'?1:-1)+this.candidates.length)%this.candidates.length;this.highlight();}return;}
       if(open&&this.candidates.length&&(e.key==='Enter'||e.key==='Tab')){e.preventDefault();this.choose(this.selected);}
     });
-    $('show-candidates').onclick=()=>{$('tag-input').focus();this.search();};$('close-candidates').onclick=()=>this.hideCandidates();
-    document.addEventListener('pointerdown',e=>{if(!$('anima-candidates').contains(e.target)&&e.target!==$('tag-input')&&e.target!==$('show-candidates'))this.hideCandidates();});
+    $('close-candidates').onclick=()=>this.hideCandidates();
+    document.addEventListener('pointerdown',e=>{if(!$('anima-candidates').contains(e.target)&&e.target!==$('tag-input'))this.hideCandidates();});
     window.addEventListener('resize',()=>this.hideCandidates());$('tools-panel').addEventListener('scroll',()=>this.hideCandidates());
-    $('anima-group').onchange=()=>{$('tag-input').focus();this.search();};$('tag-target').onchange=()=>{this.hideCandidates();this.state.target=$('tag-target').value;this.render();};
-    $('split-tags').onclick=async()=>{const value=$('tag-input').value.trim();if(!value)return this.toast('请先输入中文或英文 Prompt');if(value.length>16000)return this.toast('单次请控制在 16000 字符以内');this.hideCandidates();$('split-tags').disabled=true;try{const result=await this.addTags([value]);if(result&&!result.misses.length&&$('tag-input').value.trim()===value)$('tag-input').value='';}finally{$('split-tags').disabled=false;}};
+    $('anima-group').onchange=()=>{$('tag-input').focus();this.search();};$('tag-target').onchange=()=>{this.hideCandidates();this.state.target=$('tag-target').value;$('arrange-target').value=this.state.target;this.render();};
+    $('split-tags').onclick=async()=>{const value=$('tag-input').value.trim();if(!value)return this.toast('请先输入中文或英文 Prompt');if(value.length>16000)return this.toast('单次请控制在 16000 字符以内');this.hideCandidates();$('split-tags').disabled=true;try{const result=await this.addTags([value]);if(result&&!result.misses.length&&$('tag-input').value.trim()===value){$('tag-input').value='';this.state.input='';this.save();}}finally{$('split-tags').disabled=false;}};
     $('clear-tags').onclick=()=>{this.state[this.state.target]=[];this.showMisses([]);this.render();};
-    $('clear-all-tags').onclick=()=>{this.editRevision=(this.editRevision||0)+1;this.hideCandidates();this.translationVersion++;this.translationController?.abort();this.translationFailed.clear();this.state.positive=[];this.state.negative=[];this.state.positivePrefixes=[];this.state.negativePrefixes=[];this.state.nltags='';this.previewFilters.positive.clear();this.previewFilters.negative.clear();$('tag-input').value='';$('anima-nltags').value='';$('tag-translation-status').textContent='';$('tag-translation-retry').classList.add('hidden');this.showMisses([]);this.render();this.toast('已清空正负向标签、输入和补充，并取消全部前缀勾选');};
+    $('clear-all-tags').onclick=()=>{this.editRevision=(this.editRevision||0)+1;this.hideCandidates();this.translationVersion++;this.translationController?.abort();this.translationFailed.clear();this.state.positive=[];this.state.negative=[];this.state.positivePrefixes=[];this.state.negativePrefixes=[];this.state.nltags='';this.previewFilters.positive.clear();this.previewFilters.negative.clear();$('tag-input').value='';this.state.input='';this.state.artistInput='';this.reference.reset();$('anima-nltags').value='';$('tag-translation-status').textContent='';$('tag-translation-retry').classList.add('hidden');this.showMisses([]);this.render();this.toast('已清空正负向标签、输入和补充，并取消全部前缀勾选');};
     $('expand-tag-list').onclick=()=>{const expanded=$('tag-list').classList.toggle('expanded');$('expand-tag-list').textContent=expanded?'收起列表':'展开全部';$('expand-tag-list').setAttribute('aria-expanded',String(expanded));};
     $('anima-nltags').oninput=()=>{this.state.nltags=$('anima-nltags').value;this.renderOutputs();};
     $('prefix-new').onclick=()=>this.openPrefix();
@@ -196,8 +272,9 @@ export class AnimaEditor {
     $('prompt-chinese').onchange=()=>{this.state.previewChinese=$('prompt-chinese').checked;this.renderOutputs();};$('tag-translation-retry').onclick=()=>{this.translationFailed.clear();this.queueTranslations();};
     $('tag-editor').addEventListener('close',async()=>{
       const index=this.editIndex,target=this.editTarget;this.editIndex=-1;if($('tag-editor').returnValue!=='save'||index<0)return;
-      const text=$('edit-tag-text').value.trim(),weight=Number($('edit-tag-weight').value);if(!text||hasChinese(text)||weight<.1||weight>5)return this.toast('编辑时请输入英文标签；中文请在检索框中选词');
-      try{await this.ensureReady();const [info]=await this.rpc('lookup',{tags:[text]});if(this.state[target].some((t,i)=>i!==index&&t.text===info.tag))return this.toast('该标签已存在');this.state[target][index]={...info,text:info.tag,weight};this.render();}catch(e){this.toast(e.message);}
+      const text=$('edit-tag-text').value.trim(),weight=Number($('edit-tag-weight').value);if(!text||hasChinese(text)||!this.validWeight(weight))return this.toast('编辑时请输入英文标签；中文请在检索框中选词');
+      const revision=this.editRevision;
+      try{await this.ensureReady();if(revision!==this.editRevision)return;const [info]=await this.rpc('lookup',{tags:[text]});if(revision!==this.editRevision)return;if(this.state[target].some((t,i)=>i!==index&&t.text===info.tag))return this.toast('该标签已存在');this.state[target][index]={...info,text:info.tag,weight};this.render();}catch(e){this.toast(e.message);}
     });
     $('delete-tag').onclick=()=>{if(this.editIndex>=0)this.state[this.editTarget].splice(this.editIndex,1);$('tag-editor').close('cancel');this.render();};
   }

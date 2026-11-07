@@ -25,9 +25,9 @@ export class AnimaSkill {
   return status;
  }
  async install(kind){try{$('tagger-status').textContent='正在创建安装任务…';await this.api('install',{kind,device:$('tagger-image-device').value,proxy:$('tagger-proxy').value.trim(),mirror:$('tagger-mirror').value});await this.refresh();}catch(e){this.toast(e.message);}}
- async prepare(messages,signal){
+ async prepare(messages,signal,profile='anima'){
   const c=this.getConfig();if(!c.taggerEnabled)return null;
-  const user=messages.findLast(m=>m.role==='user'),images=(user?.files||[]).filter(f=>f.type==='image').map(f=>f.data),data={mode:c.taggerMode,text:user?.text||'',images,localImages:c.taggerLocalImages};
+  const user=messages.findLast(m=>m.role==='user'),images=(user?.files||[]).filter(f=>f.type==='image').map(f=>f.data),data={profile,mode:c.taggerMode,text:user?.text||'',images,localImages:c.taggerLocalImages};
   // Local image assistance waits for completion; only the user's signal can cancel it.
   if(images.length&&data.localImages)return this.api('context',data,signal);
   const local=new AbortController(),timer=setTimeout(()=>local.abort(),3000);

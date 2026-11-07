@@ -3,7 +3,7 @@ import {encodeBackup,decodeBackup} from './settings-backup.js';
 import {composeRequest,appendRequestInstructions,requestPlan} from './request-prompts.js';
 import {AnimaSkill} from './anima-skill-ui.js';
 import {loadSettings,persistSettings} from './settings-store.js';
-import { consumeCompletion, trimContext, messageContent, splitTags, estimateTokens } from './core.js';
+import { consumeCompletion, trimContext, messageContent, estimateTokens } from './core.js';
 import { marked } from './vendor/marked.js';
 import DOMPurify from './vendor/purify.js';
 import { AnimaEditor } from './anima-ui.js';
@@ -94,10 +94,14 @@ function renderMessage(message, index) {
     const result=message.skill.validation,report=element('div','skill-report '+(result?.passed?'passed':'pending'));
     const label={create:'创作',expand:'扩写',reverse:'反推'}[message.skill.mode]||'提示词';
     const count=result?.tokens?.count,limit=result?.tokens?.limit_enforced?` / ${result.tokens.limit}`:'';
-    report.append(element('strong','',`Anima · ${label}${Number.isFinite(count)?` · T5 ${count}${limit}`:''} · ${result?.passed?'校验通过':result?.available===false?'未校验':'待修正'}`));
+    if(message.skill.profile==='nai'){
+      report.append(element('strong','','NovelAI · '+label));
+      const blocks=[...message.text.matchAll(/```(?:text|plaintext)?[ \t]*\r?\n([\s\S]*?)```/g)];
+      if(blocks.length===2){const transfer=element('button','quiet','送入 NovelAI 编辑器 →');transfer.onclick=async()=>{animaEditor.activate('nai',true);const revision=animaEditor.modeEpoch;await animaEditor.addTags([blocks[0][1]],{target:'positive'});if(revision!==animaEditor.modeEpoch)return;await animaEditor.addTags([blocks[1][1]],{target:'negative'});toolTab('tags');};report.append(transfer);}
+    }else report.append(element('strong','',`Anima · ${label}${Number.isFinite(count)?` · T5 ${count}${limit}`:''} · ${result?.passed?'校验通过':result?.available===false?'未校验':'待修正'}`));
     if(message.skill.notice)report.append(element('p','',message.skill.notice));
     if(result?.problems?.length){report.append(element('p','',result.problems.slice(0,4).join('；')));const repair=element('button','quiet','填入修正要求 →');repair.onclick=()=>insertChat('请按 anima-tagger 规范修正以下提示词，保留用户明确的画面锚点。校验问题：'+result.problems.join('；')+'\n\n'+message.text);report.append(repair);}
-    if(result?.final_tags?.length){const transfer=element('button','quiet','送入 Tag 编辑器 →');transfer.onclick=async()=>{await animaEditor.addTags(result.final_tags);if(result.nl){animaEditor.state.nltags=[animaEditor.state.nltags,result.nl].filter(Boolean).join('\n');$('anima-nltags').value=animaEditor.state.nltags;animaEditor.save();animaEditor.render();}toolTab('tags');};report.append(transfer);}
+    if(result?.final_tags?.length){const transfer=element('button','quiet','送入 Tag 编辑器 →');transfer.onclick=async()=>{animaEditor.activate('anima',true);await animaEditor.addTags(result.final_tags);if(result.nl){animaEditor.state.nltags=[animaEditor.state.nltags,result.nl].filter(Boolean).join('\n');$('anima-nltags').value=animaEditor.state.nltags;animaEditor.save();animaEditor.render();}toolTab('tags');};report.append(transfer);}
     body.append(report);
   }
   for (const file of message.files || []) { if (file.type === 'image') { const img = element('img', 'message-image'); img.src = file.data; img.alt = file.name; img.loading = 'lazy'; body.append(img); } else body.append(element('span', 'file-badge', `▱ ${file.name}`)); }
@@ -138,8 +142,8 @@ async function generate(mode = 'send') {
   let count = 0, continueRequest = mode === 'continue';
   try {
     if(config.taggerEnabled)$('generation-info').textContent=config.taggerLocalImages&&chat.messages.findLast(m=>m.role==='user')?.files?.some(f=>f.type==='image')?'本地 PixAI 图像辅助处理中，请等待完成；可点击停止生成取消…':'正在准备 anima-tagger 技能…';
-    const skillContext=await animaSkill.prepare(chat.messages,controller.signal);
-    if(skillContext)answer.skill={mode:skillContext.mode,notice:skillContext.notice};else delete answer.skill;
+    const skillContext=await animaSkill.prepare(chat.messages,controller.signal,animaEditor.mode);
+    if(skillContext)answer.skill={mode:skillContext.mode,notice:skillContext.notice,profile:skillContext.profile};else delete answer.skill;
     do {
       controller.signal.throwIfAborted();
       let wire = chat.messages.filter(m => m.id !== answer.id || continueRequest).map(m => ({ role:m.role, content:messageContent(m) }));
@@ -166,7 +170,7 @@ async function generate(mode = 'send') {
       if (completion.reason !== 'length' || !completion.received || count >= config.autoContinue) break;
       continueRequest = true; count++;
     } while (!controller.signal.aborted);
-    if(skillContext&&answer.reason==='stop'&&answer.text){$('generation-info').textContent='正在进行 Anima 精确校验…';try{answer.skill.validation=await animaSkill.validate(answer.text,skillContext.mode,controller.signal);}catch(error){if(controller.signal.aborted)throw error;answer.skill.validation={available:false,problems:[error.message]};}}
+    if(skillContext&&skillContext.profile!=='nai'&&answer.reason==='stop'&&answer.text){$('generation-info').textContent='正在进行 Anima 精确校验…';try{answer.skill.validation=await animaSkill.validate(answer.text,skillContext.mode,controller.signal);}catch(error){if(controller.signal.aborted)throw error;answer.skill.validation={available:false,problems:[error.message]};}}
     const states = { stop:'回复完成', length:'达到输出上限，可点击「接着写」', content_filter:'服务商过滤了输出，请调整请求', interrupted:'连接提前结束，已保留收到的内容，可手动续写', empty:'模型没有返回文本', tool_calls:'此模型请求了工具，当前未配置工具' };
     $('generation-info').textContent = `${states[answer.reason] || '生成结束'}${answer.usage?.total_tokens ? ` · 本次 ${answer.usage.total_tokens} tokens` : ''}${count ? ` · 已续写 ${count} 次` : ''}`;
   } catch (error) { answer.reason = controller.signal.aborted ? 'cancelled' : 'error'; $('generation-info').textContent = controller.signal.aborted ? '已停止，已保留生成内容' : error.message; if (!controller.signal.aborted) toast(error.message); }
@@ -252,7 +256,14 @@ function toolTab(name) {
 }
 function showTools(){toolTab('translate');}
 function insertChat(text){if(!text)return toast('没有可发送的内容');$('message-input').value+=($('message-input').value?'\n':'')+text;toolTab('chat');setComposerCollapsed(false);$('message-input').focus();}
-function addTags(values) { return animaEditor.addTags(values); }
+async function transferTranslation(text,openEditor) {
+ if(text.length>16000)return toast('一次请发送 16000 字符以内的译文');
+ const result=await animaEditor.addTags([text],{fromTranslation:true});
+ if(result?.tags.length&&openEditor&&document.querySelector('.workspace').dataset.view==='translate'){
+   toolTab('tags');
+   document.querySelector('[data-step=arrange]').click();
+ }
+}
 async function copyText(text) { if (!text) return toast('暂无可复制的内容'); try { await navigator.clipboard.writeText(text); toast('已复制'); } catch { toast('复制失败，请手动选择文字复制'); } }
 function download(name,data) { const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})); const a = element('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000); }
 function validatedChat(raw) {
@@ -298,7 +309,7 @@ $('history-file').onchange = async e => { if (busy || uploading) return toast('�
 $('import-preset').onclick = () => $('preset-file').click();
 $('export-preset').onclick = () => download('绘-请求提示词.json',{version:3,...requestFields()});
 $('preset-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>1024*1024)throw new Error('预设不能超过 1 MB');const raw=JSON.parse(await file.text());if(!['system','extra','tail'].some(k=>typeof raw[k]==='string'))throw new Error('未识别到请求提示词');for(const field of ['system','extra','tail']){$(field+'-prompt').value=String(raw[field]||'');if(typeof raw[field+'Enabled']==='boolean')$(field+'-enabled').checked=raw[field+'Enabled'];}$('continue-prompt').value=String(raw.continuePrompt||defaults.continuePrompt);$('preset-select').value='custom';toast('已载入，保存后生效');}catch(error){toast(error.message);}finally{e.target.value='';}};
-translator = new TranslationPanel({getConfig:()=>config,getChatCredentials:()=>credentials(),requestChat,toast,copy:copyText,onPreference:update=>{Object.assign(config,update);saveConfig();},onSettings:()=>openSettings('translation'),onAddTags:values=>addTags(values),onShowTags:()=>{showTools();toolTab('tags');}});
+translator = new TranslationPanel({getConfig:()=>config,getChatCredentials:()=>credentials(),requestChat,toast,copy:copyText,onPreference:update=>{Object.assign(config,update);saveConfig();},onSettings:()=>openSettings('translation'),onAddTags:transferTranslation});
 animaEditor = new AnimaEditor({toast,copy:copyText,onInsert:insertChat,translateTags:(tags,options)=>translator.translateTags(tags,options)});
 animaSkill = new AnimaSkill({getConfig:()=>config,toast});
 const apiFields={'base-url':'baseUrl','settings-model':'model','translation-url':'translationUrl','translation-model':'translationModel','translation-service':'translationService','volc-region':'translationRegion'};
@@ -316,9 +327,9 @@ document.querySelector('.workspace').dataset.view='chat';
 $('translation-to-chat').onclick=()=>insertChat(translator.result?.translation);
 $('backup-open').onclick=()=>{$('backup-password').value='';$('backup-dialog').showModal();};$('backup-close').onclick=()=>$('backup-dialog').close();
 $('help-open').onclick=()=>$('help-dialog').showModal();$('help-close').onclick=()=>$('help-dialog').close();
-$('backup-export').onclick=async()=>{try{await saveConfig();const raw={format:'hui-settings',version:1,created:new Date().toISOString(),config:{...config},anima:structuredClone(animaEditor.state),credentials:{chatKey:key,translation:{...translator.secrets}}};download('绘-设置备份-'+new Date().toISOString().slice(0,10)+'.json',await encodeBackup(raw,$('backup-password').value));toast('备份已下载，包含 API 凭据');}catch(e){toast(e.message);}};
+$('backup-export').onclick=async()=>{try{await saveConfig();const raw={format:'hui-settings',version:1,created:new Date().toISOString(),config:{...config},anima:structuredClone(animaEditor.states.anima),nai:structuredClone(animaEditor.states.nai),credentials:{chatKey:key,translation:{...translator.secrets}}};download('绘-设置备份-'+new Date().toISOString().slice(0,10)+'.json',await encodeBackup(raw,$('backup-password').value));toast('备份已下载，包含 API 凭据');}catch(e){toast(e.message);}};
 $('backup-import').onclick=()=>$('backup-file').click();
-$('backup-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(busy||uploading)throw new Error('请先完成当前操作');if(file.size>4000000)throw new Error('备份文件过大');const raw=await decodeBackup(JSON.parse(await file.text()),$('backup-password').value);const next={...defaults};for(const field of Object.keys(defaults))if(raw.config[field]!==undefined&&typeof raw.config[field]===typeof defaults[field])next[field]=raw.config[field];if(raw.anima){const {prefixState}=await import('./prompt-prefixes.js');animaEditor.state={...structuredClone(raw.anima),...prefixState(raw.anima)};animaEditor.state.target=['positive','negative'].includes(raw.anima.target)?raw.anima.target:'positive';$('tag-target').value=animaEditor.state.target;$('anima-nltags').value=animaEditor.state.nltags||'';animaEditor.save();animaEditor.render();}translator.cancel();translator.cache.clear();config=next;delete config.role;key='';for(const field of Object.keys(translator.secrets))translator.secrets[field]='';if(raw.credentials){key=typeof raw.credentials.chatKey==='string'?raw.credentials.chatKey:'';for(const field of Object.keys(translator.secrets))translator.secrets[field]=typeof raw.credentials.translation?.[field]==='string'?raw.credentials.translation[field]:'';}await saveConfig();animaEditor.translationConfigurationChanged();$('chat-model').value=config.model;$('translation-live').checked=config.translationRealtime;syncBadges();connectionStatus('待验证');$('backup-dialog').close();toast('已恢复设置、前缀与标签');}catch(error){toast(error.message);}finally{e.target.value='';}};
+$('backup-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(busy||uploading)throw new Error('请先完成当前操作');if(file.size>4000000)throw new Error('备份文件过大');const raw=await decodeBackup(JSON.parse(await file.text()),$('backup-password').value);const next={...defaults};for(const field of Object.keys(defaults))if(raw.config[field]!==undefined&&typeof raw.config[field]===typeof defaults[field])next[field]=raw.config[field];if(raw.anima||raw.nai)animaEditor.restoreDrafts(raw.anima,raw.nai);translator.cancel();translator.cache.clear();config=next;delete config.role;key='';for(const field of Object.keys(translator.secrets))translator.secrets[field]='';if(raw.credentials){key=typeof raw.credentials.chatKey==='string'?raw.credentials.chatKey:'';for(const field of Object.keys(translator.secrets))translator.secrets[field]=typeof raw.credentials.translation?.[field]==='string'?raw.credentials.translation[field]:'';}await saveConfig();animaEditor.translationConfigurationChanged();$('chat-model').value=config.model;$('translation-live').checked=config.translationRealtime;syncBadges();connectionStatus('待验证');$('backup-dialog').close();toast('已恢复设置、前缀与标签');}catch(error){toast(error.message);}finally{e.target.value='';}};
 try{const stored=await loadSettings();if(stored?.config){const next={...defaults};for(const field of Object.keys(defaults))if(stored.config[field]!==undefined&&typeof stored.config[field]===typeof defaults[field])next[field]=stored.config[field];config=next;key=String(stored.credentials?.chatKey||'');for(const field of Object.keys(translator.secrets))translator.secrets[field]=String(stored.credentials?.translation?.[field]||'');localStorage.setItem('lantern-settings',JSON.stringify(config));$('chat-model').value=config.model;$('translation-live').checked=config.translationRealtime;syncBadges();}else await saveConfig();}catch(error){toast(error.message);}
 animaEditor.translationConfigurationChanged();
 try { await loadChats(); } catch { toast('浏览器存储不可用，本次记录仅保留在内存，请及时导出'); }

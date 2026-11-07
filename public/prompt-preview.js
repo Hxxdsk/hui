@@ -1,3 +1,4 @@
+import {parseNaiPrompt,formatNaiTag} from './nai-prompt.js';
 import {parseAnimaPrompt,formatAnimaTag,normalizeAnimaTag} from './anima-core.js';
 export const PROMPT_CATEGORIES=[['quality','画质'],['subject','主体 / 角色'],['appearance','外貌'],['clothing','服饰 / 道具'],['pose','动作 / 表情'],['composition','构图'],['scene','场景 / 光照'],['style','风格 / 画师'],['correction','缺陷 / 排除'],['other','其他'],['narrative','自然语言']];
 export function categoryFor(tag){
@@ -15,9 +16,11 @@ export function categoryFor(tag){
  return 'other';
 }
 export function promptTokens(state,side,metadata=new Map()){
+ const nai=state.mode==='nai',parse=nai?parseNaiPrompt:parseAnimaPrompt,format=nai?formatNaiTag:formatAnimaTag;
  const result=[],prefixes=new Map(state.prefixes.map(p=>[p.id,p]));
- for(const id of state[side+'Prefixes']){const text=prefixes.get(id)?.[side]||'';let parts;try{parts=parseAnimaPrompt(text);}catch{parts=[{text,weight:1}];}for(const entry of parts){const info=metadata.get(entry.text)||{};result.push({...info,...entry,raw:formatAnimaTag(entry),source:'prefix',key:`prefix:${id}:${result.length}`});}}
- for(const [i,entry] of state[side].entries())result.push({...metadata.get(entry.text),...entry,raw:formatAnimaTag(entry),source:'body',key:`body:${i}:${entry.text}`});
+ for(const id of state[side+'Prefixes']){const text=prefixes.get(id)?.[side]||'';let parts;try{parts=parse(text);}catch{parts=[{text,weight:1}];}for(const entry of parts){const info=metadata.get(entry.text)||{};result.push({...info,...entry,raw:format({...info,...entry}),source:'prefix',key:`prefix:${id}:${result.length}`});}}
+ for(const [i,entry] of state[side].entries())result.push({...metadata.get(entry.text),...entry,raw:format(entry),source:'body',key:`body:${i}:${entry.text}`});
+ if(nai&&side==='positive')result.sort((a,b)=>Number(a.source==='prefix')-Number(b.source==='prefix'));
  for(const entry of result)entry.kind=categoryFor(entry);
  if(side==='positive'&&state.nltags?.trim())result.push({text:state.nltags,raw:state.nltags,kind:'narrative',source:'nl',key:'nl'});
  return result;

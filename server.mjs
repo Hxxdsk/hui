@@ -1,4 +1,6 @@
 import http from 'node:http';
+import https from 'node:https';
+import {Readable} from 'node:stream';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -27,9 +29,30 @@ function json(res, status, data) {
   res.end(JSON.stringify(data));
 }
 const referenceSites = [
-  {label:'Danbooru',origin:'https://danbooru.donmai.us',mediaHosts:['cdn.donmai.us','danbooru.donmai.us']},
-  {label:'AIBooru',origin:'https://aibooru.online',mediaHosts:['cdn.aibooru.download','cdn.aibooru.online','aibooru.online']}
+  {label:'Danbooru',origin:'https://danbooru.donmai.us',proxyKey:'HUI_REFERENCE_DANBOORU_PROXY',mediaHosts:['cdn.donmai.us','danbooru.donmai.us']},
+  {label:'AIBooru',origin:'https://aibooru.online',proxyKey:'HUI_REFERENCE_AIBOORU_PROXY',mediaHosts:['cdn.aibooru.download','cdn.aibooru.online','aibooru.online']}
 ];
+function galleryTransport({origin,proxyKey}){
+  const proxy=URL.parse(process.env[proxyKey]||'');
+  if(!proxy||!['http:','https:'].includes(proxy.protocol))return null;
+  const agent=new https.Agent({proxyEnv:{HTTPS_PROXY:proxy.href},keepAlive:true,maxSockets:4});
+  return (url,{signal,headers})=>new Promise((resolve,reject)=>{
+    if(url.origin!==origin)return reject(new Error('Unexpected reference source'));
+    https.get(url,{agent,signal,headers:{...headers,'Accept-Encoding':'identity'}},response=>{
+      const status=response.statusCode;
+      if(status>=300&&status<400){
+        response.resume();
+        reject(new Error('Reference source redirected'));
+        return;
+      }
+      const hasBody=![204,205,304].includes(status);
+      if(!hasBody)response.resume();
+      resolve(new Response(hasBody?Readable.toWeb(response):null,{status}));
+    }).on('error',reject);
+  });
+}
+const referenceTransports=new Map(referenceSites.map(site=>[site.origin,galleryTransport(site)]));
+function fetchGallery(url,options){return (referenceTransports.get(url.origin)||fetch)(url,options);}
 async function requestReferencePosts(url,request,signal){
   for(const timeout of [2500,3500]){
     const deadline=AbortSignal.timeout(timeout);
@@ -38,14 +61,14 @@ async function requestReferencePosts(url,request,signal){
     try{
       const response=await request(url,{redirect:'error',signal:attempt,headers:{'User-Agent':'HuiTagWorkbench/1.0 (github.com/Hxxdsk/hui)'}});
       if(response.ok)return await response.json();
-      if(timeout===3500||(response.status!==408&&response.status<500))return null;
       await response.body?.cancel();
+      if(timeout===3500||(response.status!==408&&response.status<500))return null;
     }catch(error){
       if(signal?.aborted||timeout===3500)throw error;
     }
   }
 }
-export async function findReferencePosts({tag,page,rating}, request=fetch, signal) {
+export async function findReferencePosts({tag,page,rating}, request=fetchGallery, signal) {
   const allowed=rating==='all'?['g','s','q','e']:['g'];
   const batches=await Promise.allSettled(referenceSites.map(async ({label,origin,mediaHosts})=>{
     const url=new URL('/posts.json',origin);
@@ -103,7 +126,7 @@ export function createApp({translationHandler=translateWithService,preferencesSt
           const cancel=()=>controller.abort();
           res.once('close',cancel);
           try{
-            const results=await findReferencePosts({tag,page,rating},fetch,controller.signal);
+            const results=await findReferencePosts({tag,page,rating},undefined,controller.signal);
             if(!controller.signal.aborted)return json(res,200,results);
           }finally{res.off('close',cancel);}
           return;

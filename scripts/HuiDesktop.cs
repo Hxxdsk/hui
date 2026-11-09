@@ -22,6 +22,14 @@ class HuiDesktop : ApplicationContext {
  [StructLayout(LayoutKind.Sequential)]struct Limits{public Basic Basic;public Io Io;public UIntPtr A,B,C,D;}
  static string Quote(string s){s=s.Replace("\"","");int n=0;for(int i=s.Length-1;i>=0&&s[i]=='\\';i--)n++;return "\""+s+new string('\\',n)+"\"";}
  string Arg(string key){int i=Array.IndexOf(args,key);return i>=0&&i+1<args.Length?args[i+1]:null;}
+ static void SetGalleryProxy(ProcessStartInfo info,string key,string url){
+  if(info.EnvironmentVariables.ContainsKey(key))return;
+  try{
+   var target=new Uri(url);
+   var proxy=WebRequest.GetSystemWebProxy().GetProxy(target);
+   if(proxy!=null&&proxy!=target&&(proxy.Scheme==Uri.UriSchemeHttp||proxy.Scheme==Uri.UriSchemeHttps))info.EnvironmentVariables[key]=proxy.AbsoluteUri;
+  }catch(System.Security.SecurityException){}catch(InvalidOperationException){}
+ }
  public HuiDesktop(){root=AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);app=Directory.Exists(Path.Combine(root,"app"))?Path.Combine(root,"app"):root;node=Path.Combine(root,"runtime","node.exe");args=Environment.GetCommandLineArgs();reuse=Array.IndexOf(args,"--reuse-page")>=0;noBrowser=Array.IndexOf(args,"--no-browser")>=0;dispatcher.CreateControl();timer=new System.Windows.Forms.Timer{Interval=400};timer.Tick+=async(s,e)=>await Tick();timer.Start();Application.ApplicationExit+=(s,e)=>Cleanup();}
  int FreePort(int first){for(int i=first;i<first+100&&i<65536;i++){try{var listener=new TcpListener(IPAddress.Loopback,i);listener.Start();listener.Stop();return i;}catch(SocketException){}}throw new Exception("没有可用的本地端口");}
  void Open(){if(noBrowser)return;opened=true;Process.Start(new ProcessStartInfo(address){UseShellExecute=true});}
@@ -37,7 +45,7 @@ class HuiDesktop : ApplicationContext {
   bool created;string name;using(var sha=SHA256.Create())name=BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(root.ToLowerInvariant()))).Replace("-","");mutex=new Mutex(true,"Local\\HuiDesktop-"+name,out created);if(!created){address="http://127.0.0.1:"+preferred;Open();Exit();return;}
   port=FreePort(preferred);address="http://127.0.0.1:"+port;Directory.CreateDirectory(Path.GetDirectoryName(portFile));File.WriteAllText(portFile,new JavaScriptSerializer().Serialize(new {port=port}));
   job=CreateJobObject(IntPtr.Zero,null);if(job==IntPtr.Zero)throw new Exception("无法建立本地服务进程组");var limits=new Limits();limits.Basic.Flags=0x2000;int size=Marshal.SizeOf(limits);IntPtr ptr=Marshal.AllocHGlobal(size);try{Marshal.StructureToPtr(limits,ptr,false);if(!SetInformationJobObject(job,9,ptr,(uint)size))throw new Exception("无法配置进程退出清理");}finally{Marshal.FreeHGlobal(ptr);}
-  var info=new ProcessStartInfo(node,Quote(Path.Combine(app,"server.mjs"))){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=app,RedirectStandardOutput=true,RedirectStandardError=true};info.EnvironmentVariables["PORT"]=port.ToString();info.EnvironmentVariables["HUI_MANAGED"]="1";info.EnvironmentVariables["HUI_INSTALL_ROOT"]=root;server=new Process{StartInfo=info};server.Start();if(!AssignProcessToJobObject(job,server.Handle))throw new Exception("无法接管后台服务");server.BeginOutputReadLine();server.BeginErrorReadLine();bool ready=false;
+  var info=new ProcessStartInfo(node,Quote(Path.Combine(app,"server.mjs"))){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=app,RedirectStandardOutput=true,RedirectStandardError=true};info.EnvironmentVariables["PORT"]=port.ToString();info.EnvironmentVariables["HUI_MANAGED"]="1";info.EnvironmentVariables["HUI_INSTALL_ROOT"]=root;SetGalleryProxy(info,"HUI_REFERENCE_AIBOORU_PROXY","https://aibooru.online/posts.json");SetGalleryProxy(info,"HUI_REFERENCE_DANBOORU_PROXY","https://danbooru.donmai.us/posts.json");server=new Process{StartInfo=info};server.Start();if(!AssignProcessToJobObject(job,server.Handle))throw new Exception("无法接管后台服务");server.BeginOutputReadLine();server.BeginErrorReadLine();bool ready=false;
   for(int i=0;i<100;i++){if(server.HasExited)throw new Exception("绘服务启动失败，请检查程序文件是否完整。");try{using(var web=new WebClient()){if((await web.DownloadStringTaskAsync(address+"/api/health")).Contains("true")){ready=true;break;}}}catch{}await Task.Delay(100);}
   if(!ready)throw new Exception("绘服务启动超时。");started=true;readyAt=DateTime.UtcNow;if(!reuse)Open();CleanHelper();
  }

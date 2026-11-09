@@ -1,9 +1,9 @@
 {
   "schema": "hui-data",
-  "version": "2.5.3",
+  "version": "2.5.5",
   "bundle": {
-    "url": "https://github.com/Hxxdsk/hui/releases/download/v2.5.3/hui-data-v2.5.3.zip",
-    "sha256": "11e996d57e501d7cfd8b925a781cc88fb1e18325365945ab04862cdadb8f420b"
+    "url": "https://github.com/Hxxdsk/hui/releases/download/v2.5.5/hui-data-v2.5.5.zip",
+    "sha256": "ab084e6635efb8c27da7c94f265d1f00f1410328258381fb5f7764169056118e"
   },
   "files": [
     {

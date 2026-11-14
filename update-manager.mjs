@@ -3,14 +3,23 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomUUID,createHash} from 'node:crypto';
 import JSZip from 'jszip';
-import {checkForUpdates,currentVersion} from './updates.mjs';
+import {checkForUpdates,currentVersion,fetchUpdate} from './updates.mjs';
 
 const here=fileURLToPath(new URL('.',import.meta.url));
-export function createUpdateManager({root=process.env.HUI_INSTALL_ROOT||here,managed=process.env.HUI_MANAGED==='1',check=checkForUpdates,fetcher=fetch,onReady=()=>{}}={}){
+export function createUpdateManager({root=process.env.HUI_INSTALL_ROOT||here,managed=process.env.HUI_MANAGED==='1',check=checkForUpdates,fetcher=fetchUpdate,onReady=()=>{}}={}){
  root=path.resolve(root);let state={phase:'idle',message:'',version:currentVersion,percent:0},controller;
  const work=path.join(root,'.hui-update');
  const publicState=()=>({...state,managed});
  async function download(url,file,expected){
+  for(let attempt=0;attempt<3;attempt++){
+   try{return await downloadAttempt(url,file,expected);}
+   catch(error){
+    if(controller.signal.aborted||attempt===2||/SHA256|过大|无效/.test(error.message))throw error;
+    state.message='连接中断，正在重新下载（'+(attempt+2)+'/3）…';
+   }
+  }
+ }
+ async function downloadAttempt(url,file,expected){
   if(!url.startsWith('https://github.com/Hxxdsk/hui/releases/download/'))throw new Error('更新下载地址无效');
   const response=await fetcher(url,{signal:controller.signal,redirect:'follow'});if(!response.ok)throw new Error('下载升级失败 HTTP '+response.status);
   const chunks=[],hash=createHash('sha256'),total=Number(response.headers.get('content-length'))||0;let bytes=0;
@@ -29,7 +38,7 @@ export function createUpdateManager({root=process.env.HUI_INSTALL_ROOT||here,man
    const pending={schema:'hui-desktop-update',version:release.latest,port:Number(process.env.PORT||3210),engine:path.relative(root,engineFile).split(path.sep).join('/'),package:path.relative(root,dataFile).split(path.sep).join('/')};
    const temp=path.join(work,'pending.tmp');await fs.writeFile(temp,JSON.stringify(pending));await fs.rename(temp,path.join(work,'pending.json'));
    state={...state,phase:'restarting',percent:100,message:'校验完成，正在更新并重启，请保持页面打开…'};onReady();
-  }catch(error){state={...state,phase:'failed',message:error.message,percent:0};}
+  }catch(error){state={...state,phase:'failed',message:controller.signal.aborted?'更新下载超时，可重试；原程序可继续使用':error.message==='fetch failed'?'连接更新服务器失败，请检查系统代理或稍后重试':error.message,percent:0};}
  }
  return {status:publicState,busy:()=>['checking','downloading','restarting'].includes(state.phase),start(version){if(!managed)throw new Error('请通过新版绘.exe 启动，网页内更新需要桌面进程管理');if(this.busy())return publicState();if(typeof version!=='string'||!/^\d+\.\d+\.\d+$/.test(version))throw new Error('更新版本号无效');controller=new AbortController();controller.signal.addEventListener('abort',()=>{}, {once:true});state={phase:'checking',message:'正在确认正式发布…',version,percent:0};const timeout=setTimeout(()=>controller.abort(),300000);perform(version).finally(()=>clearTimeout(timeout));return publicState();},async result(){try{return JSON.parse(await fs.readFile(path.join(work,'result.json'),'utf8'));}catch{return null;}},dispose(){controller?.abort();}};
 }

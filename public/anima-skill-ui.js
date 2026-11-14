@@ -22,6 +22,12 @@ export class AnimaSkill {
   $('tagger-uninstall-image').disabled=this.busy||!!status.tagging||!status.imageInstalled;
   $('tagger-cancel').classList.toggle('hidden',!this.busy||job.kind==='uninstall'||(job.kind==='runtime'&&job.message==='等待 Windows 安装授权'));$('tagger-install-log').textContent=job.log||'';$('tagger-progress').classList.toggle('hidden',!this.busy);
   if(this.busy)this.timer=setTimeout(()=>this.refresh().catch(e=>{$('tagger-status').textContent=e.message;}),1500);
+  const progress=$('tagger-progress'),detail=$('tagger-download-detail'),p=job.progress;
+  progress.max=100;
+  if(this.busy&&p?.total>0){
+   progress.value=p.percent;
+   detail.textContent='当前文件 '+p.percent+'% · '+p.size.toFixed(1)+' / '+p.total.toFixed(1)+' MB';
+  }else{progress.removeAttribute('value');detail.textContent=this.busy?'正在准备或安装依赖…':'';}
   return status;
  }
  async install(kind){try{$('tagger-status').textContent='正在创建安装任务…';await this.api('install',{kind,device:$('tagger-image-device').value,proxy:$('tagger-proxy').value.trim(),mirror:$('tagger-mirror').value});await this.refresh();}catch(e){this.toast(e.message);}}

@@ -24,9 +24,14 @@ const GPU_FILES={'model.safetensors':'f29e475205cbcbc25b52a075840c7809d6215be15f
 const imageStore=createImageStore(ROOT);
 let job={state:'idle',kind:'',message:'',log:''}, installController, probe, pendingProbe,tagging=false,validating=0,nvidiaProbe;
 const exists=p=>access(p).then(()=>true,()=>false);
-const append=text=>{job.log=(job.log+text).slice(-14000);};
+const append=text=>{
+ job.log=(job.log+text).slice(-14000);
+ const matches=[...text.matchAll(/(\d+)% · ([\d.]+) MB \/ ([\d.]+) MB/g)];
+ const last=matches.at(-1);
+ if(last)job.progress={percent:Number(last[1]),size:Number(last[2]),total:Number(last[3])};
+};
 function envFor(proxy=''){
- const env={...process.env,PYTHONUTF8:'1',PYTHONIOENCODING:'utf-8',PYTHONNOUSERSITE:'1',PIP_DISABLE_PIP_VERSION_CHECK:'1',HF_HOME:path.join(ROOT,'.hf-cache'),PIP_CACHE_DIR:path.join(ROOT,'.pip-cache')};
+ const env={...process.env,PYTHONUTF8:'1',PYTHONIOENCODING:'utf-8',PYTHONNOUSERSITE:'1',PIP_DISABLE_PIP_VERSION_CHECK:'1',PIP_INDEX_URL:'https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple',HF_HOME:path.join(ROOT,'.hf-cache'),PIP_CACHE_DIR:path.join(ROOT,'.pip-cache')};
  if(proxy){env.HTTP_PROXY=proxy;env.HTTPS_PROXY=proxy;env.http_proxy=proxy;env.https_proxy=proxy;}
  return env;
 }
@@ -146,10 +151,11 @@ async function skillIntegrity(proxy,signal){
 }
 async function download(url,target,sha,proxy,signal,large=false){
  if(await exists(target)&&await hashFile(target)===sha)return;
- const partial=target+'.part';
+ job.progress=null; const partial=target+'.part';
  if(await exists(partial)&&await hashFile(partial)===sha){await rename(partial,target);return;}
  let failure;
  for(let attempt=0;attempt<3;attempt++){
+  if(attempt===2&&url.startsWith('https://hf-mirror.com/'))url=url.replace('https://hf-mirror.com/','https://huggingface.co/');
   try{await command(process.execPath,['--use-env-proxy',path.join(APP,'anima-download.mjs'),url,partial],{signal,env:envFor(proxy),timeout:large?3700000:400000,log:true});failure=null;break;}
   catch(error){failure=error;if(signal.aborted)throw error;append(`\n下载重试 ${attempt+1}/3\n`);}
  }
@@ -162,7 +168,7 @@ async function preparePython(runtime,cache,proxy,signal){
  await writeFile(path.join(runtime,'python311._pth'),'python311.zip\n.\nLib/site-packages\n../tools\nimport site\n');
  if(!await exists(path.join(runtime,'Lib/site-packages/pip'))){await download(PIP_URL,path.join(cache,'pip.whl'),PIP_SHA,proxy,signal);await extractZip(path.join(cache,'pip.whl'),path.join(runtime,'Lib/site-packages'));}
 }
-export async function startAnimaInstall({kind='validator',device='cpu',proxy='',mirror='https://huggingface.co'}={}){
+export async function startAnimaInstall({kind='validator',device='cpu',proxy='',mirror='https://hf-mirror.com'}={}){
  if(job.state==='running')throw new Error('已有安装任务正在进行');
  if(tagging||validating)throw new Error('请先停止本地打标或等待校验完成，再更改安装');
  if(!['validator','image','runtime'].includes(kind))throw new Error('安装类型无效');
